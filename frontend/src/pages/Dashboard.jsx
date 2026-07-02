@@ -904,7 +904,13 @@ export default function Dashboard() {
               <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
                 {allEmails.length > 0 ? (
                   [...allEmails]
-                    .sort((a, b) => new Date(b.date) - new Date(a.date))
+                    .sort((a, b) => {
+                      const dateA = new Date(a.date);
+                      const dateB = new Date(b.date);
+                      const timeA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
+                      const timeB = isNaN(dateB.getTime()) ? 0 : dateB.getTime();
+                      return timeB - timeA;
+                    })
                     .slice(0, 15)
                     .map((email) => (
                       <div
