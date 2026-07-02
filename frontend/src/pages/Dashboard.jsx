@@ -31,12 +31,15 @@ import {
 } from "react-icons/fi";
 
 const CATEGORY_COLORS = {
-  Promotions: "#8B5CF6", // Violet
-  Social: "#EC4899",     // Pink
-  Updates: "#3B82F6",    // Blue
-  Receipts: "#10B981",   // Emerald
-  OTP: "#F59E0B",        // Amber
-  uncategorized: "#6B7280" // Gray
+  Promotions: "#8B5CF6",   // Violet
+  Social: "#EC4899",       // Pink
+  Updates: "#3B82F6",      // Blue
+  Receipts: "#10B981",     // Emerald
+  OTP: "#F59E0B",          // Amber
+  Important: "#EF4444",    // Red
+  Other: "#06B6D4",        // Cyan
+  Uncategorized: "#6B7280", // Gray
+  uncategorized: "#6B7280" // Gray fallback
 };
 
 function formatBytes(bytes) {
