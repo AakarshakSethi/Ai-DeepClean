@@ -273,3 +273,94 @@ def ai_compose_email(payload: AIComposeRequest):
             print(f"[GEMINI AI ERROR] Failed to fetch reply: {e}")
             
     return {"draft": draft}
+
+
+@router.get("/sent")
+def list_sent_emails(user_id: int):
+    from app.services.gmail_client import get_gmail_service
+    try:
+        service = get_gmail_service(user_id)
+        # Query for sent emails
+        results = service.users().messages().list(
+            userId="me", q="from:me", maxResults=20
+        ).execute()
+        
+        messages = results.get("messages", [])
+        emails = []
+        for msg in messages:
+            try:
+                msg_data = service.users().messages().get(
+                    userId="me", id=msg["id"], format="metadata",
+                    metadataHeaders=["Subject", "To", "Date"]
+                ).execute()
+                
+                headers = msg_data.get("payload", {}).get("headers", [])
+                subject = next((h["value"] for h in headers if h["name"].lower() == "subject"), "(no subject)")
+                recipient = next((h["value"] for h in headers if h["name"].lower() == "to"), "(unknown recipient)")
+                date = next((h["value"] for h in headers if h["name"].lower() == "date"), "(unknown date)")
+                snippet = msg_data.get("snippet", "")
+                
+                emails.append({
+                    "id": msg["id"],
+                    "subject": subject,
+                    "recipient": recipient,
+                    "date": date,
+                    "snippet": snippet
+                })
+            except Exception as inner_e:
+                print(f"[SENT BLOCK ERROR] Failed to get message meta {msg['id']}: {inner_e}")
+                
+        return {"emails": emails}
+    except Exception as e:
+        return {"error": f"Failed to fetch sent emails: {str(e)}"}
+
+
+@router.get("/gmail/{gmail_id}/details")
+def get_gmail_message_details(gmail_id: str, user_id: int):
+    import base64
+    from app.services.gmail_client import get_gmail_service
+    try:
+        service = get_gmail_service(user_id)
+        msg_data = service.users().messages().get(
+            userId="me", id=gmail_id, format="full"
+        ).execute()
+        
+        payload = msg_data.get("payload", {})
+        headers = payload.get("headers", [])
+        
+        subject = next((h["value"] for h in headers if h["name"].lower() == "subject"), "(no subject)")
+        sender = next((h["value"] for h in headers if h["name"].lower() == "from"), "(unknown sender)")
+        recipient = next((h["value"] for h in headers if h["name"].lower() == "to"), "(unknown recipient)")
+        date = next((h["value"] for h in headers if h["name"].lower() == "date"), "(unknown date)")
+        
+        body_html = ""
+        body_text = ""
+        attachments = []
+        
+        parts = payload.get("parts", [])
+        if parts:
+            body_html, body_text, attachments = parse_parts(parts)
+        else:
+            body = payload.get("body", {})
+            mime_type = payload.get("mimeType", "")
+            if mime_type == "text/html" and body.get("data"):
+                body_html = base64.urlsafe_b64decode(body["data"].encode("ASCII")).decode("utf-8", errors="ignore")
+            elif mime_type == "text/plain" and body.get("data"):
+                body_text = base64.urlsafe_b64decode(body["data"].encode("ASCII")).decode("utf-8", errors="ignore")
+                
+        if not body_html and body_text:
+            body_html = body_text.replace("\n", "<br/>")
+            
+        return {
+            "id": gmail_id,
+            "gmail_message_id": gmail_id,
+            "subject": subject,
+            "sender": sender,
+            "recipient": recipient,
+            "date": date,
+            "body_html": body_html,
+            "body_text": body_text,
+            "attachments": attachments
+        }
+    except Exception as e:
+        return {"error": f"Failed to fetch message details: {str(e)}"}

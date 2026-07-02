@@ -72,3 +72,17 @@ export async function getBinEmails(userId) {
   });
   return response.data;
 }
+
+export async function listSentEmails(userId) {
+  const response = await apiClient.get("/emails/sent", {
+    params: { user_id: userId },
+  });
+  return response.data;
+}
+
+export async function getGmailMessageDetails(gmailId, userId) {
+  const response = await apiClient.get(`/emails/gmail/${gmailId}/details`, {
+    params: { user_id: userId },
+  });
+  return response.data;
+}

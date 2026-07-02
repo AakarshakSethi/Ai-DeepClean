@@ -150,8 +150,33 @@ export default function Dashboard() {
     try {
       const res = await sendEmail(userId, composeTo, composeSubject, composeBody, composeAttachments);
       if (res.error) {
+        // Save to outbox as Failed
+        const outboxEntry = {
+          id: `outbox-${Date.now()}`,
+          recipient: composeTo,
+          subject: composeSubject,
+          body: composeBody,
+          date: new Date().toLocaleString(),
+          attachmentsCount: composeAttachments.length,
+          status: "Failed"
+        };
+        const currentOutbox = JSON.parse(localStorage.getItem("deepclean_outbox_history") || "[]");
+        localStorage.setItem("deepclean_outbox_history", JSON.stringify([outboxEntry, ...currentOutbox]));
         alert(res.error);
       } else {
+        // Save to outbox as Sent
+        const outboxEntry = {
+          id: `outbox-${Date.now()}`,
+          recipient: composeTo,
+          subject: composeSubject,
+          body: composeBody,
+          date: new Date().toLocaleString(),
+          attachmentsCount: composeAttachments.length,
+          status: "Sent"
+        };
+        const currentOutbox = JSON.parse(localStorage.getItem("deepclean_outbox_history") || "[]");
+        localStorage.setItem("deepclean_outbox_history", JSON.stringify([outboxEntry, ...currentOutbox]));
+
         alert("Email sent successfully via Gmail API!");
         setShowCompose(false);
         setComposeTo("");
@@ -161,8 +186,20 @@ export default function Dashboard() {
         setComposeSize("normal");
         setShowAIPanel(false);
       }
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error(err);
+      // Save to outbox as Failed
+      const outboxEntry = {
+        id: `outbox-${Date.now()}`,
+        recipient: composeTo,
+        subject: composeSubject,
+        body: composeBody,
+        date: new Date().toLocaleString(),
+        attachmentsCount: composeAttachments.length,
+        status: "Failed"
+      };
+      const currentOutbox = JSON.parse(localStorage.getItem("deepclean_outbox_history") || "[]");
+      localStorage.setItem("deepclean_outbox_history", JSON.stringify([outboxEntry, ...currentOutbox]));
       alert("Failed to send email. Make sure your Gmail account has been successfully authenticated.");
     } finally {
       setSending(false);

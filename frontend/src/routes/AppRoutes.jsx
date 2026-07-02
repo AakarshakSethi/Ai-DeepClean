@@ -9,6 +9,8 @@ import Survey from "../pages/Survey";
 import Settings from "../pages/Settings";
 import Unsubscribe from "../pages/Unsubscribe";
 import Bin from "../pages/Bin"; // Gmail Bin Folder
+import Sent from "../pages/Sent";
+import Outbox from "../pages/Outbox";
 
 // Protect routes that require a logged-in user
 function ProtectedRoute({ children }) {
@@ -90,6 +92,22 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <Bin />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sent"
+          element={
+            <ProtectedRoute>
+              <Sent />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/outbox"
+          element={
+            <ProtectedRoute>
+              <Outbox />
             </ProtectedRoute>
           }
         />

@@ -7,7 +7,9 @@ import {
   FiCheckSquare,
   FiX,
   FiAward,
-  FiBell
+  FiBell,
+  FiSend,
+  FiMail
 } from "react-icons/fi";
 import { useEffect, useState } from "react";
 import { getPlan } from "../../api/billing";
@@ -30,6 +32,8 @@ export default function Sidebar({ isOpen, setIsOpen }) {
 
   const menu = [
     { name: "Dashboard", path: "/dashboard", icon: FiInbox },
+    { name: "Sent", path: "/sent", icon: FiSend },
+    { name: "Outbox", path: "/outbox", icon: FiMail },
     { name: "Review-30", path: "/review", icon: FiTrash2 },
     { name: "Bin", path: "/bin", icon: FiTrash2 },
     { name: "AI Search", path: "/search", icon: FiSearch },
