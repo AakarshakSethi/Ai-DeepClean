@@ -279,44 +279,70 @@ export default function Dashboard() {
   };
 
   // Sync handler with animated progress bar
-  const handleSync = async () => {
-    setSyncing(true);
-    setSyncProgress(0);
-    setSyncStatus("Connecting to Gmail API...");
+  const handleSync = async (isSilent = false) => {
+    if (!isSilent) {
+      setSyncing(true);
+      setSyncProgress(0);
+      setSyncStatus("Connecting to Gmail API...");
+    }
     
     // Smooth progress bar simulation
-    const interval = setInterval(() => {
-      setSyncProgress((prev) => {
-        if (prev >= 90) return prev;
-        return prev + 10;
-      });
-    }, 600);
+    let interval;
+    if (!isSilent) {
+      interval = setInterval(() => {
+        setSyncProgress((prev) => {
+          if (prev >= 90) return prev;
+          return prev + 10;
+        });
+      }, 600);
+    }
 
     try {
-      setSyncStatus(`Syncing recent ${scanLimit} emails...`);
-      const res = await runSync(userId, scanLimit);
+      if (!isSilent) {
+        setSyncStatus(`Syncing recent ${scanLimit} emails...`);
+      }
       
-      clearInterval(interval);
-      setSyncProgress(100);
-      setSyncStatus(`Sync complete! Synced ${res.synced_new_emails} new emails.`);
+      // If syncing silently in the background, fetch a quick 50 emails.
+      // If it's a visible first-time scan, fetch the full scanLimit depth.
+      const limitToUse = isSilent ? 50 : scanLimit;
+      const res = await runSync(userId, limitToUse);
       
-      setTimeout(() => {
-        setSyncing(false);
+      if (!isSilent) {
+        clearInterval(interval);
+        setSyncProgress(100);
+        setSyncStatus(`Sync complete! Synced ${res.synced_new_emails} new emails.`);
+        
+        setTimeout(() => {
+          setSyncing(false);
+          refetch();
+          fetchAllEmails();
+        }, 1500);
+      } else {
         refetch();
         fetchAllEmails();
-      }, 1500);
+      }
     } catch (e) {
-      clearInterval(interval);
-      setSyncing(false);
-      alert("Failed to sync inbox. Make sure Google credentials are valid.");
+      if (!isSilent) {
+        clearInterval(interval);
+        setSyncing(false);
+        alert("Failed to sync inbox. Make sure Google credentials are valid.");
+      } else {
+        console.error("Silent background sync failed:", e);
+      }
     }
   };
 
   // Trigger background scan automatically once on dashboard mount
   useEffect(() => {
     if (userId && !autoSynced) {
-      handleSync();
-      setAutoSynced(true);
+      (async () => {
+        const emails = await fetchAllEmails();
+        const hasLocalEmails = emails && emails.length > 0;
+        // If we already have emails in our DB, sync silently in background.
+        // If DB is empty, run visible first-time sync.
+        await handleSync(hasLocalEmails);
+        setAutoSynced(true);
+      })();
     }
   }, [userId, autoSynced]);
 
