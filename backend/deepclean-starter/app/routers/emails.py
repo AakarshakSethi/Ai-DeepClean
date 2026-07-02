@@ -288,18 +288,21 @@ def ai_compose_email(payload: AIComposeRequest):
 @router.get("/sent")
 def list_sent_emails(user_id: int):
     from app.services.gmail_client import get_gmail_service
+    from concurrent.futures import ThreadPoolExecutor
     try:
         service = get_gmail_service(user_id)
-        # Query for sent emails
+        # Query for sent emails (fetch up to 100 historical sent messages)
         results = service.users().messages().list(
-            userId="me", q="from:me", maxResults=20
+            userId="me", q="from:me", maxResults=100
         ).execute()
         
         messages = results.get("messages", [])
-        emails = []
-        for msg in messages:
+        
+        def fetch_single_sent_meta(msg):
             try:
-                msg_data = service.users().messages().get(
+                # Instantiate thread-local service client for thread safety
+                thread_service = get_gmail_service(user_id)
+                msg_data = thread_service.users().messages().get(
                     userId="me", id=msg["id"], format="metadata",
                     metadataHeaders=["Subject", "To", "Date"]
                 ).execute()
@@ -310,16 +313,22 @@ def list_sent_emails(user_id: int):
                 date = next((h["value"] for h in headers if h["name"].lower() == "date"), "(unknown date)")
                 snippet = msg_data.get("snippet", "")
                 
-                emails.append({
+                return {
                     "id": msg["id"],
                     "subject": subject,
                     "recipient": recipient,
                     "date": date,
                     "snippet": snippet
-                })
+                }
             except Exception as inner_e:
                 print(f"[SENT BLOCK ERROR] Failed to get message meta {msg['id']}: {inner_e}")
-                
+                return None
+
+        # Fetch up to 100 details concurrently (blazing fast)
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            fetched_results = executor.map(fetch_single_sent_meta, messages)
+            
+        emails = [r for r in fetched_results if r is not None]
         return {"emails": emails}
     except Exception as e:
         return {"error": f"Failed to fetch sent emails: {str(e)}"}
