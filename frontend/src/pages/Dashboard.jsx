@@ -65,6 +65,29 @@ export default function Dashboard() {
   const [showModal, setShowModal] = useState(false);
   const [showCategoryMenu, setShowCategoryMenu] = useState(false);
 
+  // Smart folders configuration
+  const [smartFolders, setSmartFolders] = useState(() => {
+    const saved = localStorage.getItem("deepclean_smart_folders");
+    return saved ? JSON.parse(saved) : [
+      { id: "linkedin", name: "LinkedIn", keywords: ["linkedin"] },
+      { id: "facebook", name: "Facebook", keywords: ["facebook"] },
+      { id: "instagram", name: "Instagram", keywords: ["instagram"] },
+      { id: "pinterest", name: "Pinterest", keywords: ["pinterest"] },
+      { id: "myntra", name: "Myntra", keywords: ["myntra"] },
+      { id: "amazon", name: "Amazon", keywords: ["amazon"] },
+      { id: "flipkart", name: "Flipkart", keywords: ["flipkart"] },
+      { id: "netflix", name: "Netflix", keywords: ["netflix"] },
+      { id: "spotify", name: "Spotify", keywords: ["spotify"] },
+      { id: "github", name: "GitHub", keywords: ["github"] },
+      { id: "google", name: "Google", keywords: ["google", "gmail"] }
+    ];
+  });
+  const [showManageFolders, setShowManageFolders] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [newFolderKeywords, setNewFolderKeywords] = useState("");
+  const [editingFolderId, setEditingFolderId] = useState(null);
+  const [editingFolderName, setEditingFolderName] = useState("");
+
   // Compose Email states
   const [showCompose, setShowCompose] = useState(false);
   const [composeTo, setComposeTo] = useState("");
@@ -333,19 +356,23 @@ export default function Dashboard() {
       const senderLower = email.sender.toLowerCase();
       const catLower = email.category ? email.category.toLowerCase() : "";
 
-      const knownBrands = [
-        "linkedin", "facebook", "instagram", "myntra", "amazon", 
-        "flipkart", "netflix", "spotify", "github", "google", "gmail", 
-        "receipts", "otp", "promotions", "updates"
-      ];
-      
-      const matchedBrand = knownBrands.find(b => catLower === b || senderLower.includes(b));
-      if (matchedBrand) {
-        brand = matchedBrand === "gmail" ? "Google" : matchedBrand.charAt(0).toUpperCase() + matchedBrand.slice(1);
+      const matchedFolder = smartFolders.find((folder) => {
+        if (catLower === folder.id) return true;
+        return folder.keywords.some((kw) => senderLower.includes(kw));
+      });
+
+      if (matchedFolder) {
+        brand = matchedFolder.name;
       } else {
-        const match = senderLower.match(/@([a-z0-9\-]+)\./i);
-        if (match && match[1]) {
-          brand = match[1].charAt(0).toUpperCase() + match[1].slice(1);
+        const genericBrands = ["receipts", "otp", "promotions", "updates"];
+        const matchedGeneric = genericBrands.find(b => catLower === b || senderLower.includes(b));
+        if (matchedGeneric) {
+          brand = matchedGeneric.charAt(0).toUpperCase() + matchedGeneric.slice(1);
+        } else {
+          const match = senderLower.match(/@([a-z0-9\-]+)\./i);
+          if (match && match[1]) {
+            brand = match[1].charAt(0).toUpperCase() + match[1].slice(1);
+          }
         }
       }
 
@@ -1077,6 +1104,21 @@ export default function Dashboard() {
         {/* Smart Folders Tab Content */}
         {activeTab === "folders" && (
           <div className="space-y-6">
+            {!expandedFolder && (
+              <div className="flex justify-between items-center bg-[#151A28]/45 border border-gray-800 p-4 rounded-2xl flex-wrap gap-4 select-none">
+                <div>
+                  <h3 className="text-base font-bold text-white">Smart Brand Folders</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Define your own matching rules to categorize emails automatically</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowManageFolders(true)}
+                  className="bg-violet-600/10 text-violet-400 border border-violet-500/25 hover:bg-violet-600/20 text-xs font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  ⚙️ Manage Folders & Rules
+                </button>
+              </div>
+            )}
             {expandedFolder ? (
                <div className="glass-panel p-6 rounded-2xl space-y-6">
                 {/* Folder Header */}
@@ -1358,15 +1400,7 @@ export default function Dashboard() {
                           <div className="max-h-[280px] overflow-y-auto">
                             {[
                               "Uncategorized", 
-                              "Instagram", 
-                              "LinkedIn", 
-                              "Facebook", 
-                              "Netflix", 
-                              "Amazon", 
-                              "Flipkart", 
-                              "Spotify", 
-                              "GitHub", 
-                              "Google", 
+                              ...smartFolders.map((f) => f.name),
                               "Receipts", 
                               "OTP", 
                               "Promotions", 
@@ -1602,6 +1636,207 @@ export default function Dashboard() {
 
         {/* Docked Compose Box (Gmail style) */}
         {renderComposeWindow()}
+
+        {/* Manage Smart Folders Modal */}
+        {showManageFolders && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
+            <div className="bg-[#0E1321] border border-gray-805 text-white w-full max-w-2xl rounded-2xl flex flex-col max-h-[85vh] overflow-hidden shadow-2xl">
+              {/* Header */}
+              <div className="bg-[#171D2C] px-6 py-4 flex justify-between items-center border-b border-gray-800 select-none">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <span>⚙️ Manage Smart Folders & Classification Rules</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowManageFolders(false);
+                    setEditingFolderId(null);
+                    setNewFolderName("");
+                    setNewFolderKeywords("");
+                  }}
+                  className="text-gray-400 hover:text-white font-bold text-sm px-2 py-1"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                {/* Add new smart folder form */}
+                <div className="bg-[#151A28]/50 border border-gray-800 p-4 rounded-xl space-y-4">
+                  <h4 className="text-xs font-bold text-violet-400 uppercase tracking-wider">
+                    {editingFolderId ? "✏️ Edit Smart Folder" : "➕ Create New Smart Folder"}
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-semibold text-gray-400">Folder Name:</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Pinterest, Work, School"
+                        value={editingFolderId ? editingFolderName : newFolderName}
+                        onChange={(e) => {
+                          if (editingFolderId) {
+                            setEditingFolderName(e.target.value);
+                          } else {
+                            setNewFolderName(e.target.value);
+                          }
+                        }}
+                        className="w-full bg-[#0E1321] border border-gray-850 rounded-xl py-2 px-3.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-violet-500"
+                      />
+                    </div>
+                    
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-semibold text-gray-400">Sender Address Keywords (comma-separated):</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. pinterest, pntrst"
+                        value={newFolderKeywords}
+                        onChange={(e) => setNewFolderKeywords(e.target.value)}
+                        className="w-full bg-[#0E1321] border border-gray-850 rounded-xl py-2 px-3.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-violet-500"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end gap-2.5">
+                    {editingFolderId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingFolderId(null);
+                          setEditingFolderName("");
+                          setNewFolderKeywords("");
+                        }}
+                        className="bg-gray-800 hover:bg-gray-700 text-white text-[11px] font-bold px-4 py-2 rounded-lg transition-all"
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const name = editingFolderId ? editingFolderName.trim() : newFolderName.trim();
+                        const kws = newFolderKeywords.split(",").map(k => k.trim().toLowerCase()).filter(Boolean);
+                        
+                        if (!name) {
+                          alert("Please specify a folder name.");
+                          return;
+                        }
+                        
+                        if (editingFolderId) {
+                          // Rename folder and update keywords
+                          setSmartFolders((prev) => {
+                            const updated = prev.map((f) => {
+                              if (f.id === editingFolderId) {
+                                return { 
+                                  ...f, 
+                                  name, 
+                                  keywords: kws.length > 0 ? kws : f.keywords 
+                                };
+                              }
+                              return f;
+                            });
+                            localStorage.setItem("deepclean_smart_folders", JSON.stringify(updated));
+                            return updated;
+                          });
+                          setEditingFolderId(null);
+                          setEditingFolderName("");
+                          setNewFolderKeywords("");
+                          alert("Folder updated successfully!");
+                        } else {
+                          // Add folder
+                          const id = name.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                          if (smartFolders.some(f => f.id === id)) {
+                            alert("A folder with this name already exists.");
+                            return;
+                          }
+                          
+                          const newFolder = { id, name, keywords: kws.length > 0 ? kws : [id] };
+                          setSmartFolders((prev) => {
+                            const updated = [...prev, newFolder];
+                            localStorage.setItem("deepclean_smart_folders", JSON.stringify(updated));
+                            return updated;
+                          });
+                          setNewFolderName("");
+                          setNewFolderKeywords("");
+                          alert(`Folder "${name}" created successfully!`);
+                        }
+                      }}
+                      className="bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold px-4 py-2 rounded-lg transition-all"
+                    >
+                      {editingFolderId ? "Save Changes" : "Create Folder"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* List of current custom folders */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider select-none">
+                    Active Folders & Keywords
+                  </h4>
+                  
+                  <div className="space-y-2">
+                    {smartFolders.map((folder) => (
+                      <div key={folder.id} className="flex items-center justify-between bg-[#151A28]/35 border border-gray-850 p-3.5 rounded-xl gap-4">
+                        <div className="overflow-hidden">
+                          <p className="text-sm font-bold text-white">{folder.name}</p>
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            {folder.keywords.map((kw, i) => (
+                              <span key={i} className="text-[10px] bg-violet-600/10 text-violet-400 border border-violet-500/15 px-2 py-0.5 rounded-md font-mono">
+                                *{kw}*
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingFolderId(folder.id);
+                              setEditingFolderName(folder.name);
+                              setNewFolderKeywords(folder.keywords.join(", "));
+                            }}
+                            className="bg-gray-800 hover:bg-gray-700 text-white text-[10px] font-semibold px-3 py-1.5 rounded-lg transition-all"
+                          >
+                            Edit
+                          </button>
+                          
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!window.confirm(`Are you sure you want to delete the "${folder.name}" folder rules? This won't delete the emails, but they will be grouped into other folders.`)) return;
+                              setSmartFolders((prev) => {
+                                const updated = prev.filter(f => f.id !== folder.id);
+                                localStorage.setItem("deepclean_smart_folders", JSON.stringify(updated));
+                                return updated;
+                              });
+                            }}
+                            className="bg-red-950/20 hover:bg-red-750 border border-red-500/20 text-red-400 hover:text-white text-[10px] font-semibold px-3 py-1.5 rounded-lg transition-all"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="bg-[#171D2C] px-6 py-3 flex justify-end border-t border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => setShowManageFolders(false)}
+                  className="bg-violet-600 hover:bg-violet-750 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </DashboardLayout>
