@@ -38,6 +38,15 @@ def storage_summary(user_id: int, db: Session = Depends(get_db)):
     real_limit = quota.get("limit") if quota else None
     real_usage = quota.get("usage") if quota else None
 
+    # Fetch total email count from Google Profile
+    total_gmail_emails = None
+    try:
+        service = get_gmail_service(user_id)
+        profile = service.users().getProfile(userId="me").execute()
+        total_gmail_emails = profile.get("messagesTotal")
+    except Exception as pe:
+        print(f"[PROFILE ERROR] Failed to fetch total Gmail messages count: {pe}")
+
     return {
         "emails_scanned": len(emails),
         "total_size_bytes": total_size,
@@ -45,6 +54,7 @@ def storage_summary(user_id: int, db: Session = Depends(get_db)):
         "biggest_emails": [_serialize(e) for e in biggest],
         "real_limit_bytes": real_limit,
         "real_usage_bytes": real_usage,
+        "total_gmail_emails": total_gmail_emails,
     }
 
 

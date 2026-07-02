@@ -83,7 +83,8 @@ export default function Dashboard() {
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
   const [syncProgress, setSyncProgress] = useState(0);
-  const [scanLimit, setScanLimit] = useState(50);
+  const [scanLimit, setScanLimit] = useState(() => Number(localStorage.getItem("deepclean_default_scan")) || 250);
+  const [autoSynced, setAutoSynced] = useState(false);
   const [expandedFolder, setExpandedFolder] = useState(null);
   const [selectedEmailIds, setSelectedEmailIds] = useState([]);
 
@@ -310,6 +311,14 @@ export default function Dashboard() {
       alert("Failed to sync inbox. Make sure Google credentials are valid.");
     }
   };
+
+  // Trigger background scan automatically once on dashboard mount
+  useEffect(() => {
+    if (userId && !autoSynced) {
+      handleSync();
+      setAutoSynced(true);
+    }
+  }, [userId, autoSynced]);
 
   // Delete handler for dashboard elements
   const handleDeleteEmail = async (emailId) => {
@@ -882,42 +891,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Sync Controls Section */}
-        <div className="glass-panel p-4 md:p-6 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-extrabold text-white">Inbox Scanner</h2>
-            <p className="text-xs text-gray-400 mt-1">Specify how many emails you want to fetch and scan</p>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-end">
-            {/* Scan Limit Selector */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400 font-semibold">Scan Limit:</span>
-              <select
-                value={scanLimit}
-                onChange={(e) => handleScanLimitChange(Number(e.target.value))}
-                className="bg-[#151A28] border border-[#2E3B52] text-xs text-white rounded-xl py-2 px-3 outline-none focus:border-violet-500"
-              >
-                <option value="50">50 Emails (Quick)</option>
-                <option value="250">250 Emails (Standard)</option>
-                <option value="500">500 Emails (Deep)</option>
-                <option value="1000">1000 Emails (Full)</option>
-                <option value="2000">2000 Emails (Max Scan)</option>
-              </select>
-            </div>
-
-            <button
-              onClick={handleSync}
-              disabled={syncing}
-              className={`flex items-center justify-center gap-2 w-full sm:w-auto bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-all shadow-md ${
-                syncing ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.01]"
-              }`}
-            >
-              <FiRefreshCw className={syncing ? "animate-spin" : ""} size={16} />
-              {syncing ? "Syncing..." : "Scan Gmail"}
-            </button>
-          </div>
-        </div>
 
         {/* Animated Sync Progress Bar */}
         {syncing && (
@@ -1010,8 +984,10 @@ export default function Dashboard() {
                   <FiMail className="text-violet-400" />
                   Recent Inbox Emails (Last 15)
                 </h3>
-                <span className="text-xs text-gray-550 font-bold bg-[#151A28] border border-gray-850 px-3 py-1 rounded-full">
-                  {allEmails.length} total synced
+                <span className="text-xs text-gray-550 font-bold bg-[#151A28] border border-gray-850 px-3 py-1 rounded-full select-none">
+                  {summaryData && summaryData.total_gmail_emails !== undefined && summaryData.total_gmail_emails !== null
+                    ? `${summaryData.total_gmail_emails.toLocaleString()} total emails`
+                    : `${allEmails.length} synced`}
                 </span>
               </div>
               
