@@ -44,6 +44,34 @@ function formatBytes(bytes) {
   return `${mb.toFixed(2)} MB`;
 }
 
+function extractMainDomain(sender) {
+  const emailMatch = sender.match(/<([^>]+)>/);
+  const email = emailMatch ? emailMatch[1] : sender;
+  
+  const parts = email.split("@");
+  if (parts.length < 2) return null;
+  
+  const host = parts[1].toLowerCase().trim();
+  const hostParts = host.split(".");
+  if (hostParts.length < 2) return null;
+  
+  const len = hostParts.length;
+  if (len >= 3) {
+    const lastTwo = hostParts[len - 2] + "." + hostParts[len - 1];
+    const doubleSuffixes = [
+      "co.uk", "org.uk", "me.uk", "net.uk", 
+      "co.in", "firm.in", "gen.in", "ind.in", 
+      "net.in", "org.in", "gov.in", "ac.in", 
+      "edu.in", "res.in", "com.co", "net.co", "org.co"
+    ];
+    if (doubleSuffixes.includes(lastTwo)) {
+      return hostParts[len - 3];
+    }
+  }
+  
+  return hostParts[len - 2];
+}
+
 export default function Dashboard() {
   const userId = localStorage.getItem("deepclean_user_id");
   const userPlan = localStorage.getItem("deepclean_user_plan") || "free";
@@ -406,9 +434,9 @@ export default function Dashboard() {
         if (matchedGeneric) {
           brand = matchedGeneric.charAt(0).toUpperCase() + matchedGeneric.slice(1);
         } else {
-          const match = senderLower.match(/@([a-z0-9\-]+)\./i);
-          if (match && match[1]) {
-            brand = match[1].charAt(0).toUpperCase() + match[1].slice(1);
+          const mainDom = extractMainDomain(email.sender);
+          if (mainDom) {
+            brand = mainDom.charAt(0).toUpperCase() + mainDom.slice(1);
           }
         }
       }
@@ -1192,8 +1220,42 @@ export default function Dashboard() {
                     >
                       ← Back to Folders
                     </button>
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                      {expandedFolder.name} Folder
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2 flex-wrap">
+                      <span>{expandedFolder.name} Folder</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const name = prompt(`Enter new name for "${expandedFolder.name}" folder:`);
+                          if (!name || !name.trim()) return;
+                          const trimmedName = name.trim();
+                          const id = expandedFolder.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                          
+                          setSmartFolders((prev) => {
+                            const updated = prev.map((f) => {
+                              if (f.name.toLowerCase() === expandedFolder.name.toLowerCase() || f.id === id) {
+                                return { ...f, name: trimmedName };
+                              }
+                              return f;
+                            });
+                            
+                            const folderExists = prev.some(f => f.name.toLowerCase() === expandedFolder.name.toLowerCase() || f.id === id);
+                            let finalUpdated = updated;
+                            if (!folderExists) {
+                              const newId = trimmedName.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                              finalUpdated = [...prev, { id: newId, name: trimmedName, keywords: [newId] }];
+                            }
+                            
+                            localStorage.setItem("deepclean_smart_folders", JSON.stringify(finalUpdated));
+                            setExpandedFolder((prevEx) => ({ ...prevEx, name: trimmedName }));
+                            return finalUpdated;
+                          });
+                          alert(`Folder successfully renamed to "${trimmedName}"!`);
+                        }}
+                        className="text-[10px] text-violet-400 hover:text-violet-300 font-bold bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded-lg transition-all cursor-pointer flex items-center gap-0.5"
+                        title="Rename this smart folder"
+                      >
+                        ✏️ Rename
+                      </button>
                       <span className="text-xs bg-violet-500/15 text-violet-400 border border-violet-500/25 px-2 py-0.5 rounded-full">
                         {expandedFolder.emails.length} emails
                       </span>
