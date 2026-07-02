@@ -1493,6 +1493,44 @@ export default function Dashboard() {
                               );
                             })}
                           </div>
+                          
+                          <div className="border-t border-gray-150 mt-1 pt-1 bg-gray-50/50">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const name = prompt("Enter name for new Smart Folder:");
+                                if (!name || !name.trim()) return;
+                                const trimmedName = name.trim();
+                                const id = trimmedName.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                                
+                                if (smartFolders.some((f) => f.id === id)) {
+                                  alert("A smart folder with this name already exists.");
+                                  return;
+                                }
+                                
+                                const newFolder = { id, name: trimmedName, keywords: [id] };
+                                const updated = [...smartFolders, newFolder];
+                                setSmartFolders(updated);
+                                localStorage.setItem("deepclean_smart_folders", JSON.stringify(updated));
+                                
+                                // Immediately categorize and move the email to this new folder
+                                setShowCategoryMenu(false);
+                                try {
+                                  await submitSurvey(userId, selectedEmail.id, null, trimmedName, "keep");
+                                  setSelectedEmail((prev) => ({ ...prev, category: trimmedName }));
+                                  alert(`Smart Folder "${trimmedName}" created and email moved successfully!`);
+                                  refetch();
+                                  fetchAllEmails();
+                                } catch (err) {
+                                  console.error(err);
+                                  alert("Folder created, but failed to move email.");
+                                }
+                              }}
+                              className="w-full text-left px-3.5 py-2 text-violet-600 hover:bg-violet-50 transition-colors flex items-center gap-1 font-bold cursor-pointer text-xs"
+                            >
+                              ➕ Create Smart Folder...
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
