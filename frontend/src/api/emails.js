@@ -86,3 +86,10 @@ export async function getGmailMessageDetails(gmailId, userId) {
   });
   return response.data;
 }
+
+export async function listSpamEmails(userId) {
+  const response = await apiClient.get("/emails/spam", {
+    params: { user_id: userId },
+  });
+  return response.data;
+}

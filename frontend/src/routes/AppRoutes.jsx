@@ -11,6 +11,7 @@ import Unsubscribe from "../pages/Unsubscribe";
 import Bin from "../pages/Bin"; // Gmail Bin Folder
 import Sent from "../pages/Sent";
 import Outbox from "../pages/Outbox";
+import Spam from "../pages/Spam";
 
 // Protect routes that require a logged-in user
 function ProtectedRoute({ children }) {
@@ -108,6 +109,14 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <Outbox />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/spam"
+          element={
+            <ProtectedRoute>
+              <Spam />
             </ProtectedRoute>
           }
         />

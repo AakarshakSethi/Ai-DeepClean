@@ -383,3 +383,52 @@ def get_gmail_message_details(gmail_id: str, user_id: int):
         }
     except Exception as e:
         return {"error": f"Failed to fetch message details: {str(e)}"}
+
+
+@router.get("/spam")
+def list_spam_emails(user_id: int):
+    from app.services.gmail_client import get_gmail_service
+    from concurrent.futures import ThreadPoolExecutor
+    try:
+        service = get_gmail_service(user_id)
+        # Query for spam emails (retrieve top 50 spam messages)
+        results = service.users().messages().list(
+            userId="me", q="label:SPAM", maxResults=50
+        ).execute()
+        
+        messages = results.get("messages", [])
+        
+        def fetch_single_spam_meta(msg):
+            try:
+                # Instantiate thread-local service client for thread safety
+                thread_service = get_gmail_service(user_id)
+                msg_data = thread_service.users().messages().get(
+                    userId="me", id=msg["id"], format="metadata",
+                    metadataHeaders=["Subject", "From", "Date"]
+                ).execute()
+                
+                headers = msg_data.get("payload", {}).get("headers", [])
+                subject = next((h["value"] for h in headers if h["name"].lower() == "subject"), "(no subject)")
+                sender = next((h["value"] for h in headers if h["name"].lower() == "from"), "(unknown sender)")
+                date = next((h["value"] for h in headers if h["name"].lower() == "date"), "(unknown date)")
+                snippet = msg_data.get("snippet", "")
+                
+                return {
+                    "id": msg["id"],
+                    "subject": subject,
+                    "sender": sender,
+                    "date": date,
+                    "snippet": snippet
+                }
+            except Exception as inner_e:
+                print(f"[SPAM BLOCK ERROR] Failed to get message meta {msg['id']}: {inner_e}")
+                return None
+
+        # Fetch up to 50 spam details concurrently
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            fetched_results = executor.map(fetch_single_spam_meta, messages)
+            
+        emails = [r for r in fetched_results if r is not None]
+        return {"emails": emails}
+    except Exception as e:
+        return {"error": f"Failed to fetch spam emails: {str(e)}"}

@@ -9,7 +9,8 @@ import {
   FiAward,
   FiBell,
   FiSend,
-  FiMail
+  FiMail,
+  FiAlertOctagon
 } from "react-icons/fi";
 import { useEffect, useState } from "react";
 import { getPlan } from "../../api/billing";
@@ -34,6 +35,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
     { name: "Dashboard", path: "/dashboard", icon: FiInbox },
     { name: "Sent", path: "/sent", icon: FiSend },
     { name: "Outbox", path: "/outbox", icon: FiMail },
+    { name: "Spam", path: "/spam", icon: FiAlertOctagon },
     { name: "Review-30", path: "/review", icon: FiTrash2 },
     { name: "Bin", path: "/bin", icon: FiTrash2 },
     { name: "AI Search", path: "/search", icon: FiSearch },
