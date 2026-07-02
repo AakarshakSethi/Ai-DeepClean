@@ -524,20 +524,7 @@ export default function Dashboard() {
   const standardOTPs = allEmails.filter((e) => e.category === "OTP" && !e.is_order_otp_exception);
   const deliveryOTPs = allEmails.filter((e) => e.category === "OTP" && e.is_order_otp_exception);
 
-  const displayLimitSetting = localStorage.getItem("deepclean_display_limit") || "auto";
-  let limitBytes = summaryData.real_limit_bytes || (15 * 1024 * 1024 * 1024);
-  
-  if (displayLimitSetting === "auto") {
-    // If the detected account limit is a massive corporate G Suite shared pool (> 100 GB),
-    // automatically calculate relative to a standard 15 GB personal inbox limit.
-    if (summaryData.real_limit_bytes && summaryData.real_limit_bytes > (100 * 1024 * 1024 * 1024)) {
-      limitBytes = 15 * 1024 * 1024 * 1024;
-    }
-  } else if (displayLimitSetting === "workspace_pool") {
-    limitBytes = summaryData.real_limit_bytes || (15 * 1024 * 1024 * 1024);
-  } else {
-    limitBytes = Number(displayLimitSetting) * 1024 * 1024 * 1024;
-  }
+  const limitBytes = summaryData.real_limit_bytes || (15 * 1024 * 1024 * 1024);
   
   const usageBytes = summaryData.real_usage_bytes !== null && summaryData.real_usage_bytes !== undefined 
     ? summaryData.real_usage_bytes 
@@ -863,45 +850,7 @@ export default function Dashboard() {
                 ? `Your Google Account is using ${usageGB} GB of your ${limitGB} GB shared storage. If you reach 100%, you will not be able to receive new emails. Use DeepClean below to clear space!`
                 : `Your Google Account is using ${usageGB} GB of your ${limitGB} GB shared storage. Keep your inbox clean to stay far below your storage limit.`}
             </p>
-            {displayLimitSetting === "auto" && summaryData.real_limit_bytes && summaryData.real_limit_bytes > (100 * 1024 * 1024 * 1024) && (
-              <button
-                type="button"
-                onClick={() => {
-                  localStorage.setItem("deepclean_display_limit", "workspace_pool");
-                  window.location.reload();
-                }}
-                className="text-[10px] text-violet-400 hover:text-violet-300 hover:underline font-bold mt-2.5 flex items-center gap-1 cursor-pointer bg-violet-600/10 border border-violet-500/20 px-2 py-1 rounded-lg w-fit transition-all"
-                title="Use real G Suite enterprise pool limit instead"
-              >
-                ℹ️ Automatically displaying relative to standard 15 GB limit. Your corporate G Suite pool limit is actually {(summaryData.real_limit_bytes / (1024*1024*1024)).toFixed(0)} GB. Click here to use actual pool limit.
-              </button>
-            )}
-            {displayLimitSetting === "workspace_pool" && (
-              <button
-                type="button"
-                onClick={() => {
-                  localStorage.setItem("deepclean_display_limit", "auto");
-                  window.location.reload();
-                }}
-                className="text-[10px] text-violet-400 hover:text-violet-300 hover:underline font-bold mt-2.5 flex items-center gap-1 cursor-pointer bg-violet-600/10 border border-violet-500/20 px-2 py-1 rounded-lg w-fit transition-all"
-                title="Restore auto-override standard limit"
-              >
-                🔄 Using actual G Suite pool limit ({limitGB} GB). Click here to switch back to standard 15 GB mailbox limit calculation.
-              </button>
-            )}
-            {displayLimitSetting !== "auto" && displayLimitSetting !== "workspace_pool" && (
-              <button
-                type="button"
-                onClick={() => {
-                  localStorage.setItem("deepclean_display_limit", "auto");
-                  window.location.reload();
-                }}
-                className="text-[10px] text-violet-400 hover:text-violet-300 hover:underline font-bold mt-2.5 flex items-center gap-1 cursor-pointer bg-violet-600/10 border border-violet-500/20 px-2 py-1 rounded-lg w-fit transition-all"
-                title="Restore auto-detect limit"
-              >
-                🔄 Using manual {limitGB} GB limit override. Click here to restore auto-detected Gmail storage limit.
-              </button>
-            )}
+
           </div>
           <div className="w-full md:w-64 space-y-2">
             <div className="flex justify-between text-xs font-semibold">
