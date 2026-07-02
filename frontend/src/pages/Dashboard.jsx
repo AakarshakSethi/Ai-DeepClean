@@ -727,6 +727,32 @@ export default function Dashboard() {
                 ? `Your Google Account is using ${usageGB} GB of your ${limitGB} GB shared storage. If you reach 100%, you will not be able to receive new emails. Use DeepClean below to clear space!`
                 : `Your Google Account is using ${usageGB} GB of your ${limitGB} GB shared storage. Keep your inbox clean to stay far below your storage limit.`}
             </p>
+            {displayLimitSetting === "auto" && Number(limitGB) > 100 && (
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.setItem("deepclean_display_limit", "15");
+                  window.location.reload();
+                }}
+                className="text-[10px] text-violet-400 hover:text-violet-300 hover:underline font-bold mt-2.5 flex items-center gap-1 cursor-pointer bg-violet-600/10 border border-violet-500/20 px-2 py-1 rounded-lg w-fit transition-all"
+                title="Override Workspace pool limit to standard 15 GB"
+              >
+                ℹ️ Detected Workspace/G Suite shared pool limit ({limitGB} GB). Click here to switch to standard 15 GB Gmail storage limit.
+              </button>
+            )}
+            {displayLimitSetting !== "auto" && (
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.setItem("deepclean_display_limit", "auto");
+                  window.location.reload();
+                }}
+                className="text-[10px] text-violet-400 hover:text-violet-300 hover:underline font-bold mt-2.5 flex items-center gap-1 cursor-pointer bg-violet-600/10 border border-violet-500/20 px-2 py-1 rounded-lg w-fit transition-all"
+                title="Restore auto-detect limit"
+              >
+                🔄 Using manual {limitGB} GB limit override. Click here to restore auto-detected Gmail storage limit.
+              </button>
+            )}
           </div>
           <div className="w-full md:w-64 space-y-2">
             <div className="flex justify-between text-xs font-semibold">
