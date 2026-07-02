@@ -82,9 +82,9 @@ def fetch_recent_emails(user_id: int = None, max_results=50):
             ).execute()
 
             headers = msg_data.get("payload", {}).get("headers", [])
-            subject = next((h["value"] for h in headers if h["name"] == "Subject"), "(no subject)")
-            sender = next((h["value"] for h in headers if h["name"] == "From"), "(unknown sender)")
-            date = next((h["value"] for h in headers if h["name"] == "Date"), "(unknown date)")
+            subject = next((h["value"] for h in headers if h["name"].lower() == "subject"), "(no subject)")
+            sender = next((h["value"] for h in headers if h["name"].lower() == "from"), "(unknown sender)")
+            date = next((h["value"] for h in headers if h["name"].lower() == "date"), "(unknown date)")
             size = msg_data.get("sizeEstimate", 0)
             labels = msg_data.get("labelIds", [])
             snippet = msg_data.get("snippet", "")

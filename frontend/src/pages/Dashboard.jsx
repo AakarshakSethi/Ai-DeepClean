@@ -26,7 +26,8 @@ import {
   FiMinimize2,
   FiMinus,
   FiPaperclip,
-  FiZap
+  FiZap,
+  FiHardDrive
 } from "react-icons/fi";
 
 const CATEGORY_COLORS = {
@@ -307,6 +308,26 @@ export default function Dashboard() {
       const limitToUse = isSilent ? 50 : scanLimit;
       const res = await runSync(userId, limitToUse);
       
+      // Trigger Web Notification for new emails imported
+      if (res && res.new_emails && res.new_emails.length > 0) {
+        if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+          if (res.new_emails.length <= 3) {
+            res.new_emails.forEach((email) => {
+              const displayName = email.sender.split("<")[0].trim().replace(/"/g, "") || email.sender;
+              new Notification(displayName, {
+                body: `${email.subject}\n${email.snippet || ""}`,
+                icon: "/favicon.ico"
+              });
+            });
+          } else {
+            new Notification("DeepClean Inbox Sync", {
+              body: `Synced ${res.synced_new_emails} new emails from your Gmail account!`,
+              icon: "/favicon.ico"
+            });
+          }
+        }
+      }
+
       if (!isSilent) {
         clearInterval(interval);
         setSyncProgress(100);
@@ -334,6 +355,13 @@ export default function Dashboard() {
 
   // Trigger background scan automatically once on dashboard mount
   useEffect(() => {
+    // Request permission for HTML5 Web Notifications on mount
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "default") {
+        Notification.requestPermission();
+      }
+    }
+
     if (userId && !autoSynced) {
       (async () => {
         const emails = await fetchAllEmails();
@@ -524,7 +552,11 @@ export default function Dashboard() {
   const standardOTPs = allEmails.filter((e) => e.category === "OTP" && !e.is_order_otp_exception);
   const deliveryOTPs = allEmails.filter((e) => e.category === "OTP" && e.is_order_otp_exception);
 
-  const limitBytes = summaryData.real_limit_bytes || (15 * 1024 * 1024 * 1024);
+  let limitBytes = summaryData.real_limit_bytes || (15 * 1024 * 1024 * 1024);
+  // G Suite shared pool detection override (pools > 2 TB are treated as standard 15 GB personal mailbox limits)
+  if (limitBytes > (2000 * 1024 * 1024 * 1024)) {
+    limitBytes = 15 * 1024 * 1024 * 1024;
+  }
   
   const usageBytes = summaryData.real_usage_bytes !== null && summaryData.real_usage_bytes !== undefined 
     ? summaryData.real_usage_bytes 
@@ -842,7 +874,11 @@ export default function Dashboard() {
         }`}>
           <div className="space-y-1 text-center md:text-left">
             <h3 className="text-base font-bold text-white flex items-center gap-2 justify-center md:justify-start">
-              <FiAlertTriangle className={isHighUsage ? "text-red-400 animate-pulse" : "text-violet-400"} size={20} />
+              {isHighUsage ? (
+                <FiAlertTriangle className="text-red-400 animate-pulse" size={20} />
+              ) : (
+                <FiHardDrive className="text-violet-400" size={20} />
+              )}
               Gmail Storage Quota ({usagePercent}% Full)
             </h3>
             <p className="text-xs text-gray-400 max-w-lg leading-relaxed">
@@ -890,14 +926,18 @@ export default function Dashboard() {
         {/* Core Metric Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="glass-card p-5 rounded-2xl">
-            <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Emails Scanned</p>
-            <h2 className="text-3xl font-extrabold text-white mt-2">{summaryData.emails_scanned}</h2>
+            <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Total Inbox Emails</p>
+            <h2 className="text-3xl font-extrabold text-white mt-2">
+              {summaryData.total_gmail_emails ? summaryData.total_gmail_emails.toLocaleString() : summaryData.emails_scanned}
+            </h2>
           </div>
 
           <div className="glass-card p-5 rounded-2xl">
-            <p className="text-gray-400 text-xs font-bold uppercase tracking-wider font-sans">Total Scanned Size</p>
+            <p className="text-gray-400 text-xs font-bold uppercase tracking-wider font-sans">Gmail Storage Used</p>
             <h2 className="text-3xl font-extrabold text-white mt-2">
-              {formatBytes(summaryData.total_size_bytes)}
+              {summaryData.real_usage_bytes !== null && summaryData.real_usage_bytes !== undefined
+                ? formatBytes(summaryData.real_usage_bytes)
+                : formatBytes(summaryData.total_size_bytes)}
             </h2>
           </div>
 

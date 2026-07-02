@@ -33,6 +33,7 @@ def run_sync(
     trashed_count = 0
     service = None
 
+    new_emails_list = []
     for email in fetched:
         existing = (
             db.query(EmailMeta)
@@ -70,8 +71,8 @@ def run_sync(
                 if age_hours > 24:
                     should_trash = True
             except Exception:
-                # If date parsing fails, fallback to delete
-                should_trash = True
+                # If date parsing fails, keep the OTP in inbox to prevent lockout
+                should_trash = False
                 
         # Rule 2: Auto-Delete Promotions older than 30 days
         if autodelete_promos and record.category == "Promotions":
@@ -96,10 +97,20 @@ def run_sync(
 
         db.add(record)
         saved_count += 1
+        
+        # Only add to notifications list if not auto-deleted
+        if not should_trash:
+            new_emails_list.append({
+                "subject": record.subject,
+                "sender": record.sender,
+                "category": record.category,
+                "snippet": email.get("snippet", "")
+            })
 
     db.commit()
     return {
         "synced_new_emails": saved_count, 
         "total_fetched": len(fetched),
-        "auto_cleaned_emails": trashed_count
+        "auto_cleaned_emails": trashed_count,
+        "new_emails": new_emails_list
     }
