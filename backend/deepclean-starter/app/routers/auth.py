@@ -46,47 +46,50 @@ def google_login(user_email: str, request: Request, db: Session = Depends(get_db
 @router.get("/google/callback")
 def google_callback(request: Request, state: str = None, code: str = None):
     """Handles the redirect back from Google."""
-    if not code or not state:
-        return {"error": "Missing code or state"}
+    try:
+        import urllib.parse
+        import traceback
 
-    user_email = state
-    client_config = get_client_config()
-    
-    host = request.headers.get("host", "localhost:8000")
-    scheme = "https" if "onrender.com" in host or request.headers.get("x-forwarded-proto") == "https" else "http"
-    redirect_uri = f"{scheme}://{host}/auth/google/callback"
+        if not code or not state:
+            return {"error": "Missing code or state"}
 
-    flow = google_auth_oauthlib.flow.Flow.from_client_config(
-        client_config,
-        scopes=SCOPES,
-        redirect_uri=redirect_uri,
-        state=state
-    )
+        user_email = state
+        client_config = get_client_config()
+        
+        # We must use the exact redirect URI that Google expects
+        # On Render, request.headers["host"] can sometimes be the internal IP.
+        # We'll rely on the forwarded host if available.
+        host = request.headers.get("x-forwarded-host", request.headers.get("host", "localhost:8000"))
+        scheme = "https" if "onrender.com" in host or request.headers.get("x-forwarded-proto") == "https" else "http"
+        redirect_uri = f"{scheme}://{host}/auth/google/callback"
 
-    # Need to fetch the token using the code
-    # Note: Flow uses the request URL to parse the authorization response.
-    # However, since we are behind a proxy (Render), the request.url might be HTTP instead of HTTPS.
-    # So we construct the authorization_response manually using the correct scheme.
-    authorization_response = f"{redirect_uri}?state={state}&code={code}"
-    
-    flow.fetch_token(authorization_response=authorization_response)
-    creds = flow.credentials
+        flow = google_auth_oauthlib.flow.Flow.from_client_config(
+            client_config,
+            scopes=SCOPES,
+            redirect_uri=redirect_uri,
+            state=state
+        )
 
-    # We need the user ID to save the token correctly
-    from app.database.db import SessionLocal
-    db = SessionLocal()
-    user = db.query(User).filter(User.email == user_email).first()
-    
-    if user:
-        token_filename = f"token_{user.id}.json"
-        with open(token_filename, "w") as token_file:
-            token_file.write(creds.to_json())
-            
-    db.close()
+        authorization_response = f"{redirect_uri}?state={urllib.parse.quote(state)}&code={code}"
+        
+        flow.fetch_token(authorization_response=authorization_response)
+        creds = flow.credentials
 
-    # Redirect back to the frontend
-    from app.config import FRONTEND_URL
-    return RedirectResponse(url=f"{FRONTEND_URL}?auth=success&email={user_email}")
+        from app.database.db import SessionLocal
+        db = SessionLocal()
+        user = db.query(User).filter(User.email == user_email).first()
+        
+        if user:
+            token_filename = f"token_{user.id}.json"
+            with open(token_filename, "w") as token_file:
+                token_file.write(creds.to_json())
+                
+        db.close()
+
+        from app.config import FRONTEND_URL
+        return RedirectResponse(url=f"{FRONTEND_URL}?auth=success&email={urllib.parse.quote(user_email)}")
+    except Exception as e:
+        return {"error": str(e), "traceback": traceback.format_exc()}
 
 @router.get("/me")
 def get_current_user(user_email: str, db: Session = Depends(get_db)):
