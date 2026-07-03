@@ -7,7 +7,7 @@
 import axios from "axios";
 
 const apiClient = axios.create({
-  baseURL: `http://${window.location.hostname}:8000`,
+  baseURL: import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`,
 });
 
 export default apiClient;
