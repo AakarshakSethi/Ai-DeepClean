@@ -59,6 +59,8 @@ TRAINING_DATA = [
     ("Github repository notification commits", "Updates")
 ]
 
+_MODEL_CACHE = {}
+
 def train_model(db: Session, user_id: int):
     """Retrains the ML model for a specific user incorporating their historical choices."""
     if not SKLEARN_AVAILABLE:
@@ -99,17 +101,23 @@ def train_model(db: Session, user_id: int):
     except Exception as e:
         print(f"[ML CLASSIFIER] Failed to save model to {model_path}: {e}")
         
+    _MODEL_CACHE[user_id] = pipeline
     return pipeline
 
 def load_or_train_model(db: Session, user_id: int):
     if not SKLEARN_AVAILABLE:
         return None
         
+    if user_id in _MODEL_CACHE:
+        return _MODEL_CACHE[user_id]
+        
     model_path = get_model_path(user_id)
     if os.path.exists(model_path):
         try:
             with open(model_path, "rb") as f:
-                return pickle.load(f)
+                model = pickle.load(f)
+                _MODEL_CACHE[user_id] = model
+                return model
         except Exception:
             return train_model(db, user_id)
     else:
