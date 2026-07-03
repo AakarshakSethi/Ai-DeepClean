@@ -21,7 +21,7 @@ def list_emails(user_id: int, category: str = None, db: Session = Depends(get_db
     return {"count": len(emails), "emails": [_serialize(e) for e in emails]}
 
 
-from app.services.gmail_client import get_storage_quota
+from app.services.gmail_client import get_storage_quota, get_gmail_service
 
 import time
 _google_api_cache = {}
