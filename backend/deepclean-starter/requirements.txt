@@ -6,3 +6,4 @@ psycopg2-binary==2.9.9
 google-api-python-client
 google-auth-oauthlib
 python-multipart
+scikit-learn

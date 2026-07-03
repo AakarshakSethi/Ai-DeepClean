@@ -45,6 +45,9 @@ const CATEGORY_COLORS = {
 function formatBytes(bytes) {
   if (!bytes) return "0.00 MB";
   const mb = bytes / (1024 * 1024);
+  if (mb >= 1024) {
+    return `${(mb / 1024).toFixed(2)} GB`;
+  }
   return `${mb.toFixed(2)} MB`;
 }
 
@@ -564,13 +567,19 @@ export default function Dashboard() {
   }
 
   // Prepping pie chart data - filter out zero/negligible categories (< 10 KB) and sort largest first
-  const pieData = Object.entries(summaryData.size_by_category || {})
+  let pieData = Object.entries(summaryData.size_by_category || {})
     .map(([name, value]) => ({
       name,
       value: value / (1024 * 1024) // in MB
     }))
     .filter((item) => item.value > 0.01)
     .sort((a, b) => b.value - a.value);
+
+  if (pieData.length > 6) {
+    const top5 = pieData.slice(0, 5);
+    const otherValue = pieData.slice(5).reduce((acc, curr) => acc + curr.value, 0);
+    pieData = [...top5, { name: "Other", value: otherValue }];
+  }
 
   const folders = getBrandFolders();
   const standardOTPs = allEmails.filter((e) => e.category === "OTP" && !e.is_order_otp_exception);
@@ -911,14 +920,14 @@ export default function Dashboard() {
             </h3>
             <p className="text-xs text-gray-400 max-w-lg leading-relaxed">
               {isHighUsage 
-                ? `Your Google Account is using ${usageGB} GB of your ${limitGB} GB shared storage. If you reach 100%, you will not be able to receive new emails. Use DeepClean below to clear space!`
-                : `Your Google Account is using ${usageGB} GB of your ${limitGB} GB shared storage. Keep your inbox clean to stay far below your storage limit.`}
+                ? `Your Google Account is using ${formatBytes(usageBytes)} of your ${limitGB} GB shared storage. If you reach 100%, you will not be able to receive new emails. Use DeepClean below to clear space!`
+                : `Your Google Account is using ${formatBytes(usageBytes)} of your ${limitGB} GB shared storage. Keep your inbox clean to stay far below your storage limit.`}
             </p>
 
           </div>
           <div className="w-full md:w-64 space-y-2">
             <div className="flex justify-between text-xs font-semibold">
-              <span className="text-gray-300">{usageGB} GB used</span>
+              <span className="text-gray-300">{formatBytes(usageBytes)} used</span>
               <span className={isHighUsage ? "text-red-400" : "text-violet-400"}>{usagePercent}%</span>
             </div>
             <div className="w-full bg-gray-800/80 h-2.5 rounded-full overflow-hidden">

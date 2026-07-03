@@ -75,6 +75,12 @@ import base64
 from fastapi import Response
 from app.services.gmail_client import get_gmail_service
 
+def decode_base64_urlsafe(data: str) -> str:
+    if not data:
+        return ""
+    data += "=" * ((4 - len(data) % 4) % 4)
+    return base64.urlsafe_b64decode(data.encode("ASCII")).decode("utf-8", errors="ignore")
+
 def parse_parts(parts):
     body_html = ""
     body_text = ""
@@ -98,11 +104,9 @@ def parse_parts(parts):
             body_text += t
             attachments.extend(atts)
         elif mime_type == "text/html" and body.get("data"):
-            html_data = base64.urlsafe_b64decode(body["data"].encode("ASCII")).decode("utf-8", errors="ignore")
-            body_html += html_data
+            body_html += decode_base64_urlsafe(body["data"])
         elif mime_type == "text/plain" and body.get("data"):
-            text_data = base64.urlsafe_b64decode(body["data"].encode("ASCII")).decode("utf-8", errors="ignore")
-            body_text += text_data
+            body_text += decode_base64_urlsafe(body["data"])
             
     return body_html, body_text, attachments
 
@@ -129,7 +133,7 @@ def get_email_details(email_id: int, user_id: int, db: Session = Depends(get_db)
         else:
             body = payload.get("body", {})
             if body.get("data"):
-                data = base64.urlsafe_b64decode(body["data"].encode("ASCII")).decode("utf-8", errors="ignore")
+                data = decode_base64_urlsafe(body["data"])
                 if mime_type == "text/html":
                     body_html = data
                 else:
