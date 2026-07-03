@@ -11,7 +11,8 @@ import {
   FiShield,
   FiMail,
   FiTrash2,
-  FiInfo
+  FiInfo,
+  FiRefreshCw
 } from "react-icons/fi";
 
 function formatBytes(bytes) {
