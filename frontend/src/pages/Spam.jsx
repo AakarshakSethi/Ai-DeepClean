@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { listSpamEmails, getGmailMessageDetails, unspamEmail } from "../api/emails";
+import { listSpamEmails, getGmailMessageDetails, unspamEmail, getStorageSummary } from "../api/emails";
 import DashboardLayout from "../layouts/DashboardLayout";
 import {
   FiLoader,
@@ -18,11 +18,20 @@ export default function Spam() {
   const [modalLoading, setModalLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
+  const [availableCategories, setAvailableCategories] = useState(["INBOX"]);
+
   const fetchSpam = async () => {
     setLoading(true);
     try {
       const data = await listSpamEmails(userId);
       setSpamEmails(data.emails || []);
+      
+      // Fetch dynamic categories
+      const summary = await getStorageSummary(userId);
+      if (summary && summary.size_by_category) {
+        const cats = Object.keys(summary.size_by_category).filter(c => c && c !== "INBOX" && c !== "Spam");
+        setAvailableCategories(["INBOX", ...cats]);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -286,9 +295,11 @@ export default function Spam() {
                     onChange={(e) => setRescueCategory(e.target.value)}
                     className="bg-white border border-gray-300 text-gray-700 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-500"
                   >
-                    <option value="INBOX">Primary Inbox</option>
-                    <option value="Promotions">Promotions</option>
-                    <option value="Receipts">Receipts</option>
+                    {availableCategories.map(cat => (
+                      <option key={cat} value={cat}>
+                        {cat === "INBOX" ? "Primary Inbox" : cat}
+                      </option>
+                    ))}
                     <option value="Other">Custom Folder...</option>
                   </select>
                   
