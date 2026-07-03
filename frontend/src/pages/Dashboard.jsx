@@ -42,6 +42,20 @@ const CATEGORY_COLORS = {
   uncategorized: "#6B7280" // Gray fallback
 };
 
+const getCategoryColor = (categoryName) => {
+  if (!categoryName) return CATEGORY_COLORS.uncategorized;
+  if (CATEGORY_COLORS[categoryName]) return CATEGORY_COLORS[categoryName];
+  if (CATEGORY_COLORS[categoryName.toLowerCase()]) return CATEGORY_COLORS[categoryName.toLowerCase()];
+  
+  // Generate distinct color using a simple hash
+  let hash = 0;
+  for (let i = 0; i < categoryName.length; i++) {
+    hash = categoryName.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const h = Math.abs(hash) % 360;
+  return `hsl(${h}, 70%, 60%)`;
+};
+
 function formatBytes(bytes) {
   if (!bytes) return "0.00 MB";
   const mb = bytes / (1024 * 1024);
@@ -551,6 +565,17 @@ export default function Dashboard() {
     }
     
     return sorted;
+  };
+
+  const handleChartClick = (entry) => {
+    if (!entry || !entry.name) return;
+    const folders = getBrandFolders();
+    const folder = folders.find(f => f.name === entry.name);
+    if (folder) {
+      setActiveTab("folders");
+      setExpandedFolder(folder);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   if (summaryLoading) {
@@ -1106,8 +1131,8 @@ export default function Dashboard() {
                               <span
                                 className="text-[9px] border px-1.5 py-0.5 rounded font-bold uppercase tracking-wider block w-fit shrink-0"
                                 style={{
-                                  borderColor: CATEGORY_COLORS[email.category] || CATEGORY_COLORS.uncategorized,
-                                  color: CATEGORY_COLORS[email.category] || CATEGORY_COLORS.uncategorized
+                                  borderColor: getCategoryColor(email.category),
+                                  color: getCategoryColor(email.category)
                                 }}
                               >
                                 {email.category}
@@ -1157,11 +1182,13 @@ export default function Dashboard() {
                           outerRadius={80}
                           paddingAngle={5}
                           dataKey="value"
+                          onClick={handleChartClick}
                         >
                           {pieData.map((entry, index) => (
                             <Cell
                               key={`cell-${index}`}
-                              fill={CATEGORY_COLORS[entry.name] || CATEGORY_COLORS.uncategorized}
+                              fill={getCategoryColor(entry.name)}
+                              className="cursor-pointer hover:opacity-80 transition-opacity outline-none"
                             />
                           ))}
                         </Pie>
@@ -1201,8 +1228,8 @@ export default function Dashboard() {
                             <span
                               className="text-[10px] border px-1.5 py-0.5 rounded font-bold"
                               style={{
-                                borderColor: CATEGORY_COLORS[email.category] || CATEGORY_COLORS.uncategorized,
-                                color: CATEGORY_COLORS[email.category] || CATEGORY_COLORS.uncategorized
+                                borderColor: getCategoryColor(email.category),
+                                color: getCategoryColor(email.category)
                               }}
                             >
                               {email.category}
