@@ -13,15 +13,8 @@ os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.get("/google/login")
-def google_login(user_email: str, request: Request, db: Session = Depends(get_db)):
+def google_login(request: Request, db: Session = Depends(get_db)):
     """Starts the Google Web OAuth flow."""
-    user = db.query(User).filter(User.email == user_email).first()
-    if not user:
-        user = User(email=user_email, plan="free")
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-
     client_config = get_client_config()
     if not client_config:
         return {"error": "Google Client ID/Secret not configured on server"}
@@ -36,12 +29,15 @@ def google_login(user_email: str, request: Request, db: Session = Depends(get_db
         redirect_uri=redirect_uri
     )
 
-    # Generate the authorization URL with our custom state
+    import uuid
+    state_token = str(uuid.uuid4())
+
+    # Generate the authorization URL with a secure random state
     authorization_url, _ = flow.authorization_url(
         access_type="offline",
         include_granted_scopes="true",
         prompt="consent",
-        state=user_email
+        state=state_token
     )
 
     return RedirectResponse(url=authorization_url)
@@ -55,9 +51,6 @@ def google_callback(request: Request, state: str = None, code: str = None):
 
         if not code or not state:
             return {"error": "Missing code or state"}
-
-        # Extract the user email
-        user_email = state
         
         client_config = get_client_config()
         
@@ -72,14 +65,30 @@ def google_callback(request: Request, state: str = None, code: str = None):
             state=state
         )
 
-        authorization_response = f"{redirect_uri}?state={urllib.parse.quote(state)}&code={code}"
+        authorization_response = str(request.url)
         
         flow.fetch_token(authorization_response=authorization_response)
         creds = flow.credentials
 
+        # Fetch user's email address from Google
+        from googleapiclient.discovery import build
+        service = build('oauth2', 'v2', credentials=creds)
+        user_info = service.userinfo().get().execute()
+        user_email = user_info.get('email')
+        
+        if not user_email:
+            return {"error": "Could not fetch email from Google"}
+
         from app.database.db import SessionLocal
         db = SessionLocal()
+        
+        # Create user if not exists
         user = db.query(User).filter(User.email == user_email).first()
+        if not user:
+            user = User(email=user_email, plan="free")
+            db.add(user)
+            db.commit()
+            db.refresh(user)
         
         if user:
             token_filename = f"token_{user.id}.json"

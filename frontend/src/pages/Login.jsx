@@ -38,19 +38,14 @@ export default function Login() {
     }
   }, [searchParams, navigate]);
 
-  const handleSubmit = async (e) => {
+  const handleGoogleLogin = async (e) => {
     e.preventDefault();
-    if (!email) {
-      setError("Please enter a valid Gmail address.");
-      return;
-    }
-
     setLoading(true);
     setError("");
 
     // Redirect to the backend login endpoint to start the Web OAuth flow
     const backendUrl = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
-    window.location.href = `${backendUrl}/auth/google/login?user_email=${encodeURIComponent(email.trim())}`;
+    window.location.href = `${backendUrl}/auth/google/login`;
   };
 
   return (
@@ -91,39 +86,20 @@ export default function Login() {
             <div>
               <p className="text-sm font-semibold text-white">Connecting Gmail...</p>
               <p className="text-xs text-gray-500 mt-1 max-w-[280px]">
-                Please complete the Google OAuth sign-in in the local browser window that just popped up.
+                Please complete the Google OAuth sign-in in the secure browser window.
               </p>
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="email" className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                Gmail Address
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-500">
-                  <FiMail size={18} />
-                </div>
-                <input
-                  type="email"
-                  id="email"
-                  placeholder="example@gmail.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-[#151A28] border border-[#2E3B52] rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder:text-gray-500 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all"
-                  required
-                />
-              </div>
-            </div>
-
+          <div className="space-y-6">
             <button
-              type="submit"
-              className="w-full bg-violet-600 hover:bg-violet-700 text-white font-medium py-3 rounded-xl shadow-lg shadow-violet-600/25 transition-all hover:scale-[1.01]"
+              onClick={handleGoogleLogin}
+              className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-100 text-gray-900 font-semibold py-3.5 rounded-xl shadow-lg transition-all hover:scale-[1.02]"
             >
-              Sign In & Connect Gmail
+              <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google" className="w-5 h-5" />
+              Sign in with Google
             </button>
-          </form>
+          </div>
         )}
 
         <div className="mt-8 text-center text-[10px] text-gray-500 leading-relaxed border-t border-gray-800/40 pt-4">
