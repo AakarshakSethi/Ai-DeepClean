@@ -17,6 +17,23 @@ SCOPES = [
 ]
 
 
+def get_client_config():
+    """Generates the client_config dict dynamically from env vars"""
+    from app.config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        return None
+    return {
+        "web": {
+            "client_id": GOOGLE_CLIENT_ID,
+            "project_id": "ai-inbox-deepclean",
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_secret": GOOGLE_CLIENT_SECRET
+        }
+    }
+
+
 def get_gmail_service(user_id: int = None):
     import httplib2
     token_filename = f"token_{user_id}.json" if user_id else "token.json"
@@ -27,11 +44,7 @@ def get_gmail_service(user_id: int = None):
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
-            creds = flow.run_local_server(port=0, open_browser=False)
-
-        with open(token_filename, "w") as token_file:
-            token_file.write(creds.to_json())
+            raise Exception("User has no valid token. They must go through the Web OAuth flow.")
 
     # Create transport with disabled SSL validation for proxy safety
     import google_auth_httplib2

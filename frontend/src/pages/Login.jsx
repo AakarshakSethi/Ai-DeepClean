@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { connectGmail } from "../api/auth";
 import { FiMail, FiArrowLeft, FiLoader } from "react-icons/fi";
 
@@ -8,6 +8,35 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get("auth") === "success") {
+      const userEmail = searchParams.get("email");
+      if (userEmail) {
+        // We need the user_id, which we could fetch, but for simplicity let's assume 
+        // the backend returned it or we can fetch it via /auth/me
+        const fetchMe = async () => {
+          try {
+            const backendUrl = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
+            const res = await fetch(`${backendUrl}/auth/me?user_email=${encodeURIComponent(userEmail)}`);
+            const data = await res.json();
+            if (data && data.id) {
+              localStorage.setItem("deepclean_user_id", data.id);
+              localStorage.setItem("deepclean_user_email", data.email);
+              localStorage.setItem("deepclean_user_plan", data.plan);
+              navigate("/dashboard");
+            } else {
+              setError("Failed to retrieve user profile after login.");
+            }
+          } catch (e) {
+            setError("Failed to retrieve user profile after login.");
+          }
+        };
+        fetchMe();
+      }
+    }
+  }, [searchParams, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -19,28 +48,9 @@ export default function Login() {
     setLoading(true);
     setError("");
 
-    try {
-      // Connect to backend Gmail connection oauth endpoint
-      const data = await connectGmail(email.trim());
-      if (data.error) {
-        setError(data.error);
-      } else {
-        // Save user info to localStorage
-        localStorage.setItem("deepclean_user_id", data.user_id);
-        localStorage.setItem("deepclean_user_email", email.trim());
-        localStorage.setItem("deepclean_user_plan", data.plan);
-        // Redirect to dashboard
-        navigate("/dashboard");
-      }
-    } catch (err) {
-      console.error(err);
-      setError(
-        err.response?.data?.detail || 
-        "Failed to connect Gmail. Please make sure the backend is running."
-      );
-    } finally {
-      setLoading(false);
-    }
+    // Redirect to the backend login endpoint to start the Web OAuth flow
+    const backendUrl = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
+    window.location.href = `${backendUrl}/auth/google/login?user_email=${encodeURIComponent(email.trim())}`;
   };
 
   return (

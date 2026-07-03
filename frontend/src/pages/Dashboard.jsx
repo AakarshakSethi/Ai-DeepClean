@@ -172,6 +172,18 @@ export default function Dashboard() {
     }
   };
 
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (!email) {
+      alert("Please enter a valid email address.");
+      return;
+    }
+    setLoading(true);
+    // Redirect to the backend login endpoint to start the Web OAuth flow
+    const backendUrl = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
+    window.location.href = `${backendUrl}/auth/google/login?user_email=${encodeURIComponent(email)}`;
+  };
+
   // Compose Email handler
   const handleSendEmail = async (e) => {
     e.preventDefault();
