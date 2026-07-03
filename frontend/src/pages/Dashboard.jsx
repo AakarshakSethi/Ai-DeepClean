@@ -626,10 +626,6 @@ export default function Dashboard() {
   const deliveryOTPs = allEmails.filter((e) => e.category === "OTP" && e.is_order_otp_exception);
 
   let limitBytes = summaryData.real_limit_bytes || (15 * 1024 * 1024 * 1024);
-  // G Suite shared pool detection override (pools > 2 TB are treated as standard 15 GB personal mailbox limits)
-  if (limitBytes > (2000 * 1024 * 1024 * 1024)) {
-    limitBytes = 15 * 1024 * 1024 * 1024;
-  }
   
   const usageBytes = summaryData.real_usage_bytes !== null && summaryData.real_usage_bytes !== undefined 
     ? summaryData.real_usage_bytes 
