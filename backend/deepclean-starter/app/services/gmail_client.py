@@ -92,11 +92,19 @@ def fetch_recent_emails(user_id: int = None, max_results=50, q=None):
 
     emails = []
     from concurrent.futures import ThreadPoolExecutor
+    import threading
+    
+    thread_local = threading.local()
+
+    def get_thread_service():
+        if not hasattr(thread_local, "service"):
+            thread_local.service = get_gmail_service(user_id)
+        return thread_local.service
 
     def fetch_single_email(msg):
         try:
-            # google-api-client is not thread-safe, so instantiate a thread-local service client
-            thread_service = get_gmail_service(user_id)
+            # Re-use the thread-local service client instead of building it from scratch
+            thread_service = get_thread_service()
             msg_data = thread_service.users().messages().get(
                 userId="me", id=msg["id"], format="metadata",
                 metadataHeaders=["Subject", "From", "Date"]

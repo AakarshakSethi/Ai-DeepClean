@@ -48,13 +48,14 @@ def run_sync(
     service = None
 
     new_emails_list = []
+    
+    # Bulk fetch existing IDs to prevent hundreds of individual DB queries
+    fetched_gmail_ids = [e["gmail_message_id"] for e in fetched]
+    existing_records = db.query(EmailMeta.gmail_message_id).filter(EmailMeta.gmail_message_id.in_(fetched_gmail_ids)).all()
+    existing_ids = {r[0] for r in existing_records}
+
     for email in fetched:
-        existing = (
-            db.query(EmailMeta)
-            .filter(EmailMeta.gmail_message_id == email["gmail_message_id"])
-            .first()
-        )
-        if existing:
+        if email["gmail_message_id"] in existing_ids:
             continue  # already synced, skip
 
         classification = classify_email(db, user_id, email["subject"], email["sender"], email["labels"], email.get("snippet", ""))

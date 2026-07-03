@@ -431,10 +431,18 @@ def list_spam_emails(user_id: int):
         
         messages = results.get("messages", [])
         
+        import threading
+        thread_local = threading.local()
+        
+        def get_thread_service():
+            if not hasattr(thread_local, "service"):
+                thread_local.service = get_gmail_service(user_id)
+            return thread_local.service
+        
         def fetch_single_spam_meta(msg):
             try:
                 # Instantiate thread-local service client for thread safety
-                thread_service = get_gmail_service(user_id)
+                thread_service = get_thread_service()
                 msg_data = thread_service.users().messages().get(
                     userId="me", id=msg["id"], format="metadata",
                     metadataHeaders=["Subject", "From", "Date"]
