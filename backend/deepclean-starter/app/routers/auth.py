@@ -71,7 +71,13 @@ def google_callback(request: Request, state: str = None, code: str = None):
         creds = flow.credentials
 
         from app.config import FRONTEND_URL
-        if not creds.has_scopes(SCOPES):
+        # Google drops openid/profile scopes from the final token, so only verify the sensitive scopes
+        required_scopes = [
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.send",
+            "https://www.googleapis.com/auth/drive.metadata.readonly"
+        ]
+        if not creds.has_scopes(required_scopes):
             return RedirectResponse(url=f"{FRONTEND_URL}/login?error=missing_permissions")
 
         # Fetch user's email address from Google
