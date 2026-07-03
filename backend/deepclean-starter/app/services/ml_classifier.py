@@ -1,15 +1,12 @@
 import re
 import os
 import pickle
+import math
+from collections import defaultdict
 from sqlalchemy.orm import Session
 
-try:
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.naive_bayes import MultinomialNB
-    from sklearn.pipeline import Pipeline
-    SKLEARN_AVAILABLE = True
-except ImportError:
-    SKLEARN_AVAILABLE = False
+# We no longer need scikit-learn!
+SKLEARN_AVAILABLE = True
 
 def get_model_path(user_id: int) -> str:
     return f"email_classifier_model_{user_id}.pkl"
@@ -59,13 +56,70 @@ TRAINING_DATA = [
     ("Github repository notification commits", "Updates")
 ]
 
+class CustomNaiveBayes:
+    """A pure-Python implementation of a Naive Bayes classifier with TF vectorization."""
+    def __init__(self):
+        self.class_counts = defaultdict(int)
+        self.word_counts = defaultdict(dict)
+        self.vocab = set()
+        self.total_docs = 0
+
+    def tokenize(self, text):
+        text = text.lower()
+        words = re.findall(r'\b[a-z]{2,}\b', text)
+        stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'your'}
+        return [w for w in words if w not in stop_words]
+
+    def fit(self, X, y):
+        for text, label in zip(X, y):
+            self.total_docs += 1
+            self.class_counts[label] += 1
+            words = self.tokenize(text)
+            
+            # Using binary presence (Multinomial NB variant)
+            for word in set(words):
+                if word not in self.word_counts[label]:
+                    self.word_counts[label][word] = 0
+                self.word_counts[label][word] += 1
+                self.vocab.add(word)
+
+    def predict_proba_dict(self, text):
+        words = set(self.tokenize(text))
+        log_probs = {}
+        for label in self.class_counts:
+            # Prior probability P(Class)
+            log_prob = math.log(self.class_counts[label] / self.total_docs)
+            
+            # Likelihood P(Word | Class) with Laplace smoothing
+            denominator = self.class_counts[label] + 2 
+            
+            for word in words:
+                if word in self.vocab:
+                    numerator = self.word_counts[label].get(word, 0) + 1
+                    log_prob += math.log(numerator / denominator)
+                else:
+                    # OOV words are ignored in standard NB
+                    pass
+            log_probs[label] = log_prob
+            
+        # Convert log probabilities to normalized probabilities (Softmax)
+        if not log_probs:
+            return {}
+            
+        max_log = max(log_probs.values())
+        probs = {}
+        denom = 0
+        for label, lp in log_probs.items():
+            val = math.exp(lp - max_log)
+            probs[label] = val
+            denom += val
+            
+        return {label: val / denom for label, val in probs.items()}
+
 _MODEL_CACHE = {}
 
 def train_model(db: Session, user_id: int):
-    """Retrains the ML model for a specific user incorporating their historical choices."""
-    if not SKLEARN_AVAILABLE:
-        return None
-        
+    """Retrains the custom ML model for a specific user incorporating their historical choices."""
     X = [item[0].lower() for item in TRAINING_DATA]
     y = [item[1] for item in TRAINING_DATA]
     
@@ -87,27 +141,20 @@ def train_model(db: Session, user_id: int):
     except Exception as e:
         print(f"[ML CLASSIFIER] Failed to query user responses: {e}")
                 
-    pipeline = Pipeline([
-        ('vectorizer', TfidfVectorizer(ngram_range=(1, 2), stop_words='english')),
-        ('classifier', MultinomialNB(alpha=0.1))
-    ])
-    
-    pipeline.fit(X, y)
+    model = CustomNaiveBayes()
+    model.fit(X, y)
     
     model_path = get_model_path(user_id)
     try:
         with open(model_path, "wb") as f:
-            pickle.dump(pipeline, f)
+            pickle.dump(model, f)
     except Exception as e:
         print(f"[ML CLASSIFIER] Failed to save model to {model_path}: {e}")
         
-    _MODEL_CACHE[user_id] = pipeline
-    return pipeline
+    _MODEL_CACHE[user_id] = model
+    return model
 
 def load_or_train_model(db: Session, user_id: int):
-    if not SKLEARN_AVAILABLE:
-        return None
-        
     if user_id in _MODEL_CACHE:
         return _MODEL_CACHE[user_id]
         
@@ -124,25 +171,24 @@ def load_or_train_model(db: Session, user_id: int):
         return train_model(db, user_id)
 
 def ml_classify(db: Session, user_id: int, subject: str) -> str:
-    """Classifies email subject using the user's personal trained ML model."""
-    if not SKLEARN_AVAILABLE:
-        return None
-        
+    """Classifies email subject using the user's custom ML model."""
     model = load_or_train_model(db, user_id)
     if not model:
         return None
         
     try:
-        # Calculate prediction probabilities for all classes
-        probs = model.predict_proba([subject.lower()])[0]
-        max_idx = probs.argmax()
-        max_prob = probs[max_idx]
+        probs = model.predict_proba_dict(subject)
+        if not probs:
+            return None
+            
+        best_class = max(probs.items(), key=lambda x: x[1])
+        max_prob = best_class[1]
+        prediction = best_class[0]
         
         # If the model is not confident (confidence < 50%), ignore and fallback to rules
         if max_prob < 0.5:
             return None
             
-        prediction = model.classes_[max_idx]
         return prediction
     except Exception:
         return None
