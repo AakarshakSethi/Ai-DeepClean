@@ -14,3 +14,10 @@ export async function runSync(userId, maxResults = 50) {
   });
   return response.data;
 }
+
+export async function runDeepSync(userId) {
+  const response = await apiClient.post("/gmail-sync/run-deep", null, {
+    params: { user_id: userId },
+  });
+  return response.data;
+}

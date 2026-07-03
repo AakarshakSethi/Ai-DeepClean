@@ -4,7 +4,7 @@ Pulls emails from Gmail and saves them into the database with a category
 and risk score already attached - this is the "initial inbox scan" step.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.database.db import get_db
 from app.models.email_meta import EmailMeta
@@ -149,3 +149,59 @@ def run_sync(
         "auto_cleaned_emails": trashed_count,
         "new_emails": new_emails_list
     }
+
+def deep_sync_job(user_id: int):
+    from app.database.db import SessionLocal
+    db = SessionLocal()
+    try:
+        print(f"[DEEP SYNC] Starting deep scan for user {user_id}...")
+        general_fetched = fetch_recent_emails(user_id=user_id, max_results=10000)
+        
+        seen_ids = set()
+        fetched = []
+        for email in general_fetched:
+            if email["gmail_message_id"] not in seen_ids:
+                seen_ids.add(email["gmail_message_id"])
+                fetched.append(email)
+
+        for email in fetched:
+            existing = (
+                db.query(EmailMeta)
+                .filter(EmailMeta.gmail_message_id == email["gmail_message_id"])
+                .first()
+            )
+            if existing:
+                continue
+
+            classification = classify_email(db, user_id, email["subject"], email["sender"], email["labels"], email.get("snippet", ""))
+            risk = calculate_risk_score(
+                classification["category"], email["size_bytes"], classification["is_order_otp_exception"]
+            )
+
+            record = EmailMeta(
+                user_id=user_id,
+                gmail_message_id=email["gmail_message_id"],
+                subject=email["subject"],
+                sender=email["sender"],
+                date=email["date"],
+                size_bytes=email["size_bytes"],
+                category=classification["category"],
+                risk_score=risk,
+                is_order_otp_exception=classification["is_order_otp_exception"],
+            )
+            db.add(record)
+            
+            if len(db.new) >= 100:
+                db.commit()
+
+        db.commit()
+        print(f"[DEEP SYNC] Completed deep scan for user {user_id}.")
+    except Exception as e:
+        print(f"[DEEP SYNC ERROR] {e}")
+    finally:
+        db.close()
+
+@router.post("/run-deep")
+def run_sync_deep(user_id: int, background_tasks: BackgroundTasks):
+    background_tasks.add_task(deep_sync_job, user_id)
+    return {"status": "started", "message": "Deep scan initiated in the background."}

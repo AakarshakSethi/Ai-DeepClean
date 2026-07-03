@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useStorageSummary } from "../hooks/useEmails";
 import { listEmails, getEmailDetails, getAttachmentDownloadUrl, sendEmail, aiComposeEmail } from "../api/emails";
-import { runSync } from "../api/sync";
+import { runSync, runDeepSync } from "../api/sync";
 import { approveAction, approveActions } from "../api/cleanup";
 import { submitSurvey } from "../api/survey";
 import DashboardLayout from "../layouts/DashboardLayout";
@@ -88,6 +88,7 @@ export default function Dashboard() {
   const [allEmails, setAllEmails] = useState([]);
   const [emailsLoading, setEmailsLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [deepSyncing, setDeepSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
   const [syncProgress, setSyncProgress] = useState(0);
   const [scanLimit, setScanLimit] = useState(() => Number(localStorage.getItem("deepclean_default_scan")) || 250);
@@ -294,6 +295,20 @@ export default function Dashboard() {
       alert("Error occurred while generating AI draft.");
     } finally {
       setAIGenerating(false);
+    }
+  };
+
+  const handleDeepSync = async () => {
+    if (!userId) return;
+    try {
+      setDeepSyncing(true);
+      await runDeepSync(userId);
+      alert("Deep scan started! It will process up to 10,000 emails securely in the background. You can continue using the app.");
+    } catch (e) {
+      console.error(e);
+      alert("Failed to start deep scan.");
+    } finally {
+      setDeepSyncing(false);
     }
   };
 
@@ -1225,13 +1240,23 @@ export default function Dashboard() {
                   <h3 className="text-base font-bold text-white">Smart Brand Folders</h3>
                   <p className="text-xs text-gray-400 mt-0.5">Define your own matching rules to categorize emails automatically</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowManageFolders(true)}
-                  className="bg-violet-600/10 text-violet-400 border border-violet-500/25 hover:bg-violet-600/20 text-xs font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  ⚙️ Manage Folders & Rules
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleDeepSync}
+                    disabled={deepSyncing}
+                    className={`bg-blue-600/10 text-blue-400 border border-blue-500/25 hover:bg-blue-600/20 text-xs font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${deepSyncing ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    {deepSyncing ? "🔄 Deep Scanning..." : "🔍 Full Inbox Deep Scan"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowManageFolders(true)}
+                    className="bg-violet-600/10 text-violet-400 border border-violet-500/25 hover:bg-violet-600/20 text-xs font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    ⚙️ Manage Folders & Rules
+                  </button>
+                </div>
               </div>
             )}
             {expandedFolder ? (
