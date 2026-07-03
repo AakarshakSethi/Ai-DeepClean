@@ -215,3 +215,63 @@ def get_bin_emails(user_id: int, db: Session = Depends(get_db)):
         })
         
     return {"count": len(emails_list), "emails": emails_list}
+
+
+@router.post("/approve-actions")
+def approve_actions(user_id: int, email_ids: list[int], action: str, db: Session = Depends(get_db)):
+    """
+    Approve actions for a list of email IDs in bulk concurrently.
+    action: "delete" | "restore" | "keep"
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    
+    emails = db.query(EmailMeta).filter(
+        EmailMeta.id.in_(email_ids),
+        EmailMeta.user_id == user_id
+    ).all()
+    
+    if not emails:
+        return {"message": "No emails found to process", "processed_count": 0, "freed_bytes": 0}
+        
+    freed_bytes = 0
+    
+    def process_single_email_action(email):
+        try:
+            # Create thread-local service client for thread safety
+            thread_service = get_gmail_service(user_id)
+            if action == "delete":
+                email.is_deleted = True
+                email.deleted_at = datetime.utcnow()
+                thread_service.users().messages().trash(userId="me", id=email.gmail_message_id).execute()
+                return email.size_bytes
+            elif action == "restore":
+                email.is_deleted = False
+                email.deleted_at = None
+                thread_service.users().messages().untrash(userId="me", id=email.gmail_message_id).execute()
+                return 0
+            elif action == "keep":
+                email.is_deleted = False
+                email.deleted_at = None
+                from app.services.gmail_client import move_email_to_gmail_label
+                move_email_to_gmail_label(thread_service, email.gmail_message_id, email.category)
+                return 0
+        except Exception as inner_e:
+            print(f"[BULK ACTION ERROR] Failed to process email {email.id}: {inner_e}")
+            return 0
+
+    import time
+    def delayed_process(email):
+        time.sleep(0.2)
+        return process_single_email_action(email)
+
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        results = list(executor.map(delayed_process, emails))
+        
+    freed_bytes = sum(results)
+    db.commit()
+    
+    return {
+        "processed_count": len(emails),
+        "action": action,
+        "freed_bytes": freed_bytes
+    }

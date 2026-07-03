@@ -40,7 +40,7 @@ def get_gmail_service(user_id: int = None):
     return build("gmail", "v1", http=authorized_http)
 
 
-def fetch_recent_emails(user_id: int = None, max_results=50):
+def fetch_recent_emails(user_id: int = None, max_results=50, q=None):
     service = get_gmail_service(user_id)
     
     # Google API list caps maxResults at 500 per page. 
@@ -51,9 +51,14 @@ def fetch_recent_emails(user_id: int = None, max_results=50):
     while len(messages) < max_results:
         page_size = min(max_results - len(messages), 500)
         try:
-            results = service.users().messages().list(
-                userId="me", maxResults=page_size, pageToken=next_page_token
-            ).execute()
+            kwargs = {
+                "userId": "me",
+                "maxResults": page_size,
+                "pageToken": next_page_token
+            }
+            if q:
+                kwargs["q"] = q
+            results = service.users().messages().list(**kwargs).execute()
         except Exception as e:
             print(f"[GMAIL API ERROR] Failed to fetch message list: {e}")
             break

@@ -28,7 +28,21 @@ def run_sync(
     db: Session = Depends(get_db)
 ):
     """Fetches recent emails from Gmail, classifies them, scores them, and saves to DB."""
-    fetched = fetch_recent_emails(user_id=user_id, max_results=max_results)
+    # 1. Fetch general recent emails
+    general_fetched = fetch_recent_emails(user_id=user_id, max_results=max_results)
+    
+    # 2. Fetch targeted historic OTPs/Receipts from the entire inbox history
+    targeted_q = "subject:otp OR subject:verification OR subject:code OR subject:pin OR subject:activation OR subject:confirm OR subject:receipt OR subject:invoice OR subject:booking"
+    targeted_fetched = fetch_recent_emails(user_id=user_id, max_results=200, q=targeted_q)
+    
+    # Combined and deduplicate using gmail_message_id
+    seen_ids = set()
+    fetched = []
+    for email in general_fetched + targeted_fetched:
+        if email["gmail_message_id"] not in seen_ids:
+            seen_ids.add(email["gmail_message_id"])
+            fetched.append(email)
+
     saved_count = 0
     trashed_count = 0
     service = None
@@ -108,6 +122,27 @@ def run_sync(
             })
 
     db.commit()
+    
+    # Reclassify existing cached emails to apply latest rules and manual training updates
+    try:
+        
+
+        all_user_emails = db.query(EmailMeta).filter(EmailMeta.user_id == user_id).all()
+        healed_count = 0
+        for e in all_user_emails:
+            classification = classify_email(db, e.user_id, e.subject, e.sender, [])
+            if classification["category"] != e.category:
+                e.category = classification["category"]
+                e.risk_score = calculate_risk_score(
+                    e.category, e.size_bytes, classification["is_order_otp_exception"]
+                )
+                healed_count += 1
+        if healed_count > 0:
+            db.commit()
+            print(f"[SYNC HEALER] Reclassified and healed {healed_count} existing emails.")
+    except Exception as re_err:
+        print(f"[SYNC HEALER ERROR] Failed to run reclassification: {re_err}")
+
     return {
         "synced_new_emails": saved_count, 
         "total_fetched": len(fetched),

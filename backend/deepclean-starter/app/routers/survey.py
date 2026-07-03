@@ -70,7 +70,11 @@ def submit_survey_answer(
     email = db.query(EmailMeta).filter(EmailMeta.id == email_id).first()
     if email:
         if classification:
-            email.category = classification
+            # Update all emails from this sender to the new category to keep the inbox consistent
+            db.query(EmailMeta).filter(
+                EmailMeta.user_id == user_id,
+                EmailMeta.sender == email.sender
+            ).update({EmailMeta.category: classification})
 
         # Real-time synchronization to Gmail API
         try:
@@ -83,6 +87,14 @@ def submit_survey_answer(
                 move_email_to_gmail_label(service, email.gmail_message_id, classification)
         except Exception as e:
             print(f"[GMAIL SYNC ERROR] Failed to apply survey action on Gmail: {e}")
+            
+        # Trigger real-time user-isolated ML model retraining
+        if classification:
+            try:
+                from app.services.ml_classifier import train_model
+                train_model(db, user_id)
+            except Exception as ml_err:
+                print(f"[ML RETRAIN ERROR] Failed to retrain model for user {user_id}: {ml_err}")
 
     db.commit()
     return {"message": "Survey answer saved", "email_id": email_id}

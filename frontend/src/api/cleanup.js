@@ -20,3 +20,10 @@ export async function completeBatch(userId, storageFreedBytes) {
   });
   return response.data;
 }
+
+export async function approveActions(userId, emailIds, action) {
+  const response = await apiClient.post("/cleanup/approve-actions", emailIds, {
+    params: { user_id: userId, action },
+  });
+  return response.data;
+}

@@ -3,9 +3,11 @@ main.py
 The entry point - wires together every router into one app.
 This replaces your old flat main.py.
 """
-
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
+
+from dotenv import load_dotenv
+load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +28,31 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     init_db()
+    
+    # Run a one-time data correction to heal incorrectly classified historic emails (like bookings)
+    try:
+        from app.database.db import SessionLocal
+        from app.models.email_meta import EmailMeta
+        from app.services.classifier import classify_email
+        from app.services.risk_score import calculate_risk_score
+        
+        db = SessionLocal()
+        emails = db.query(EmailMeta).all()
+        updated = 0
+        for e in emails:
+            classification = classify_email(db, e.user_id, e.subject, e.sender, [])
+            if classification["category"] != e.category:
+                e.category = classification["category"]
+                e.risk_score = calculate_risk_score(
+                    e.category, e.size_bytes, classification["is_order_otp_exception"]
+                )
+                updated += 1
+        if updated > 0:
+            db.commit()
+            print(f"[RECLASSIFY] Successfully healed {updated} historic emails in the database!")
+        db.close()
+    except Exception as se:
+        print(f"[RECLASSIFY ERROR] Failed to run startup reclassification: {se}")
 
 
 @app.get("/")

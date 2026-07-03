@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useStorageSummary } from "../hooks/useEmails";
 import { listEmails, getEmailDetails, getAttachmentDownloadUrl, sendEmail, aiComposeEmail } from "../api/emails";
 import { runSync } from "../api/sync";
-import { approveAction } from "../api/cleanup";
+import { approveAction, approveActions } from "../api/cleanup";
 import { submitSurvey } from "../api/survey";
 import DashboardLayout from "../layouts/DashboardLayout";
 import {
@@ -81,7 +81,7 @@ export default function Dashboard() {
   const userPlan = localStorage.getItem("deepclean_user_plan") || "free";
   const { data: summaryData, loading: summaryLoading, error: summaryError, refetch } = useStorageSummary(userId);
 
-  const [activeTab, setActiveTab] = useState("overview"); // overview | folders | otps
+  const [activeTab, setActiveTab] = useState("folders"); // folders | overview | otps
   const [allEmails, setAllEmails] = useState([]);
   const [emailsLoading, setEmailsLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -400,18 +400,17 @@ export default function Dashboard() {
       return;
 
     try {
-      for (const emailId of selectedEmailIds) {
-        await approveAction(userId, emailId, "delete");
-      }
+      await approveActions(userId, selectedEmailIds, "delete");
       setAllEmails((prev) => prev.filter((e) => !selectedEmailIds.includes(e.id)));
       
       // Update expanded folder emails if in folder view
-      if (expandedFolder) {
-        setExpandedFolder((prev) => ({
+      setExpandedFolder((prev) => {
+        if (!prev) return prev;
+        return {
           ...prev,
           emails: prev.emails.filter((e) => !selectedEmailIds.includes(e.id)),
-        }));
-      }
+        };
+      });
       
       setSelectedEmailIds([]);
       refetch();
@@ -443,9 +442,8 @@ export default function Dashboard() {
       return;
 
     try {
-      for (const email of folderEmails) {
-        await approveAction(userId, email.id, "delete");
-      }
+      const emailIds = folderEmails.map((e) => e.id);
+      await approveActions(userId, emailIds, "delete");
       setAllEmails((prev) => prev.filter((e) => !folderEmails.some((fe) => fe.id === e.id)));
       setExpandedFolder(null);
       refetch();
@@ -469,9 +467,8 @@ export default function Dashboard() {
       return;
 
     try {
-      for (const email of cleanable) {
-        await approveAction(userId, email.id, "delete");
-      }
+      const emailIds = cleanable.map((e) => e.id);
+      await approveActions(userId, emailIds, "delete");
       setAllEmails((prev) => prev.filter((e) => !cleanable.some((c) => c.id === e.id)));
       refetch();
     } catch (e) {
@@ -482,39 +479,48 @@ export default function Dashboard() {
   // Grouping logic for smart folders
   const getBrandFolders = () => {
     const groups = {};
+    
+    // Always initialize Large Emails folder
+    groups["Large Emails"] = { name: "Large Emails", emails: [], size: 0, isLargeFiles: true };
+
     allEmails.forEach((email) => {
-      let brand = "Other Senders";
-      const senderLower = email.sender.toLowerCase();
-      const catLower = email.category ? email.category.toLowerCase() : "";
-
-      const matchedFolder = smartFolders.find((folder) => {
-        if (catLower === folder.id) return true;
-        return folder.keywords.some((kw) => senderLower.includes(kw));
-      });
-
-      if (matchedFolder) {
-        brand = matchedFolder.name;
-      } else {
-        const genericBrands = ["receipts", "otp", "promotions", "updates"];
-        const matchedGeneric = genericBrands.find(b => catLower === b || senderLower.includes(b));
-        if (matchedGeneric) {
-          brand = matchedGeneric.charAt(0).toUpperCase() + matchedGeneric.slice(1);
-        } else {
-          const mainDom = extractMainDomain(email.sender);
-          if (mainDom) {
-            brand = mainDom.charAt(0).toUpperCase() + mainDom.slice(1);
-          }
-        }
+      let brand = email.category;
+      if (!brand || brand.toLowerCase() === "uncategorized") {
+        const mainDom = extractMainDomain(email.sender);
+        brand = mainDom ? mainDom.charAt(0).toUpperCase() + mainDom.slice(1) : "Other";
       }
 
       if (!groups[brand]) {
         groups[brand] = { name: brand, emails: [], size: 0 };
       }
-      groups[brand].emails.push(email);
-      groups[brand].size += email.size_bytes;
+      
+      // Prevent duplicates if bulk actions triggered multiple updates
+      if (!groups[brand].emails.some(e => e.id === email.id)) {
+        groups[brand].emails.push(email);
+        groups[brand].size += email.size_bytes;
+      }
+
+      // Add to Large Emails if size > 1MB
+      if (email.size_bytes > 1024 * 1024) {
+        if (!groups["Large Emails"].emails.some(e => e.id === email.id)) {
+          groups["Large Emails"].emails.push(email);
+          groups["Large Emails"].size += email.size_bytes;
+        }
+      }
     });
 
-    return Object.values(groups).sort((a, b) => b.size - a.size);
+    if (groups["Large Emails"].emails.length === 0) {
+      delete groups["Large Emails"];
+    }
+
+    const sorted = Object.values(groups).sort((a, b) => b.size - a.size);
+    const largeFolder = sorted.find(g => g.isLargeFiles);
+    
+    if (largeFolder) {
+      return [largeFolder, ...sorted.filter(g => !g.isLargeFiles)];
+    }
+    
+    return sorted;
   };
 
   if (summaryLoading) {
@@ -545,11 +551,14 @@ export default function Dashboard() {
     );
   }
 
-  // Prepping pie chart data
-  const pieData = Object.entries(summaryData.size_by_category || {}).map(([name, value]) => ({
-    name,
-    value: value / (1024 * 1024) // in MB
-  }));
+  // Prepping pie chart data - filter out zero/negligible categories (< 10 KB) and sort largest first
+  const pieData = Object.entries(summaryData.size_by_category || {})
+    .map(([name, value]) => ({
+      name,
+      value: value / (1024 * 1024) // in MB
+    }))
+    .filter((item) => item.value > 0.01)
+    .sort((a, b) => b.value - a.value);
 
   const folders = getBrandFolders();
   const standardOTPs = allEmails.filter((e) => e.category === "OTP" && !e.is_order_otp_exception);
@@ -866,6 +875,10 @@ export default function Dashboard() {
       </div>
     );
   };
+
+  const senderName = selectedEmail?.sender || "(unknown sender)";
+  const cleanSenderName = senderName.split("<")[0].trim() || senderName;
+  const senderEmailAddress = senderName.includes("<") ? `<${senderName.split("<")[1].replace(">", "")}>` : "";
 
   return (
     <DashboardLayout>
@@ -1640,16 +1653,16 @@ export default function Dashboard() {
                   <div className="flex items-start gap-4">
                     {/* Circle Avatar */}
                     <div className="w-10 h-10 rounded-full bg-violet-600 text-white flex items-center justify-center font-bold text-base shrink-0 select-none">
-                      {selectedEmail.sender[0].toUpperCase()}
+                      {(cleanSenderName || "U")[0].toUpperCase()}
                     </div>
                     
                     {/* Sender text details */}
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                         <p className="text-xs md:text-sm text-[#202124] truncate">
-                          <strong className="font-semibold">{selectedEmail.sender.split("<")[0].trim()}</strong>
+                          <strong className="font-semibold">{cleanSenderName}</strong>
                           <span className="text-gray-500 font-normal ml-1">
-                            {selectedEmail.sender.includes("<") ? `<${selectedEmail.sender.split("<")[1].replace(">", "")}>` : ""}
+                            {senderEmailAddress}
                           </span>
                         </p>
                         <span className="text-[11px] text-gray-500 shrink-0 font-normal">
