@@ -11,6 +11,10 @@ export default function Login() {
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
+    if (searchParams.get("error") === "missing_permissions") {
+      setError("You must check the box to grant Gmail permissions during sign-in.");
+    }
+    
     if (searchParams.get("auth") === "success") {
       const userEmail = searchParams.get("email");
       if (userEmail) {

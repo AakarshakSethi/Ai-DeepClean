@@ -70,6 +70,10 @@ def google_callback(request: Request, state: str = None, code: str = None):
         flow.fetch_token(authorization_response=authorization_response)
         creds = flow.credentials
 
+        from app.config import FRONTEND_URL
+        if not creds.has_scopes(SCOPES):
+            return RedirectResponse(url=f"{FRONTEND_URL}/login?error=missing_permissions")
+
         # Fetch user's email address from Google
         from googleapiclient.discovery import build
         service = build('oauth2', 'v2', credentials=creds)
