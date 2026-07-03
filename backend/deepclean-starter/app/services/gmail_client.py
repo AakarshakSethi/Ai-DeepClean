@@ -160,8 +160,9 @@ def get_storage_quota(user_id: int):
         about_data = drive_service.about().get(fields="storageQuota").execute()
         quota = about_data.get("storageQuota", {})
         
+        limit = quota.get("limit")
         return {
-            "limit": int(quota.get("limit", 15 * 1024 * 1024 * 1024)),
+            "limit": int(limit) if limit else -1, # -1 indicates unlimited
             "usage": int(quota.get("usage", 0))
         }
     except Exception as e:

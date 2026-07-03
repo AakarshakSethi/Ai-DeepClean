@@ -625,16 +625,18 @@ export default function Dashboard() {
   const standardOTPs = allEmails.filter((e) => e.category === "OTP" && !e.is_order_otp_exception);
   const deliveryOTPs = allEmails.filter((e) => e.category === "OTP" && e.is_order_otp_exception);
 
-  let limitBytes = summaryData.real_limit_bytes || (15 * 1024 * 1024 * 1024);
+  let limitBytes = summaryData.real_limit_bytes !== undefined ? summaryData.real_limit_bytes : (15 * 1024 * 1024 * 1024);
+  const isUnlimited = limitBytes === -1;
   
   const usageBytes = summaryData.real_usage_bytes !== null && summaryData.real_usage_bytes !== undefined 
     ? summaryData.real_usage_bytes 
     : (summaryData.total_size_bytes || 0);
-  const usagePercent = Math.max(Math.round((usageBytes / limitBytes) * 100), 1);
+    
+  const usagePercent = isUnlimited ? 0 : Math.max(Math.round((usageBytes / limitBytes) * 100), 1);
   
-  const limitGB = (limitBytes / (1024 * 1024 * 1024)).toFixed(0);
+  const limitGB = isUnlimited ? "Unlimited" : (limitBytes / (1024 * 1024 * 1024)).toFixed(0);
   const usageGB = (usageBytes / (1024 * 1024 * 1024)).toFixed(1);
-  const isHighUsage = usagePercent >= 80;
+  const isHighUsage = !isUnlimited && usagePercent >= 80;
 
   const renderComposeWindow = () => {
     if (!showCompose) return null;
@@ -956,8 +958,8 @@ export default function Dashboard() {
             </h3>
             <p className="text-xs text-gray-400 max-w-lg leading-relaxed">
               {isHighUsage 
-                ? `Your Google Account is using ${formatBytes(usageBytes)} of your ${limitGB} GB shared storage. If you reach 100%, you will not be able to receive new emails. Use DeepClean below to clear space!`
-                : `Your Google Account is using ${formatBytes(usageBytes)} of your ${limitGB} GB shared storage. Keep your inbox clean to stay far below your storage limit.`}
+                ? `Your Google Account is using ${formatBytes(usageBytes)} of your ${isUnlimited ? "Unlimited" : limitGB + " GB"} shared storage. If you reach 100%, you will not be able to receive new emails. Use DeepClean below to clear space!`
+                : `Your Google Account is using ${formatBytes(usageBytes)} of your ${isUnlimited ? "Unlimited" : limitGB + " GB"} shared storage. Keep your inbox clean to stay far below your storage limit.`}
             </p>
 
           </div>
