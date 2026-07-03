@@ -139,6 +139,15 @@ def classify_email(db: Session, user_id: int, subject: str, sender: str, gmail_l
 
     if any(k in subject_lower for k in RECEIPT_KEYWORDS):
         return {"category": "Receipts", "is_order_otp_exception": False}
+        
+    if "CATEGORY_PROMOTIONS" in labels:
+        return {"category": "Promotions", "is_order_otp_exception": False}
+        
+    if "CATEGORY_SOCIAL" in labels:
+        return {"category": "Social", "is_order_otp_exception": False}
+        
+    if "CATEGORY_UPDATES" in labels:
+        return {"category": "Updates", "is_order_otp_exception": False}
 
     # Dynamic Brand Extraction (e.g. Claude, Groww, Amazon)
     brand = extract_brand(sender)
