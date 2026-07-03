@@ -36,26 +36,15 @@ def google_login(user_email: str, request: Request, db: Session = Depends(get_db
         redirect_uri=redirect_uri
     )
 
-    # Generate the authorization URL and PKCE code verifier
-    authorization_url, _ = flow.authorization_url(
-        access_type="offline",
-        include_granted_scopes="true",
-        prompt="consent"
-    )
-    
-    # We must embed the PKCE code_verifier into the state so we can retrieve it in the callback
-    state_str = f"{user_email}:::{flow.code_verifier}"
-    
-    # Generate the final authorization URL with our custom state
+    # Generate the authorization URL with our custom state
     authorization_url, _ = flow.authorization_url(
         access_type="offline",
         include_granted_scopes="true",
         prompt="consent",
-        state=state_str
+        state=user_email
     )
 
     return RedirectResponse(url=authorization_url)
-
 
 @router.get("/google/callback")
 def google_callback(request: Request, state: str = None, code: str = None):
@@ -67,12 +56,8 @@ def google_callback(request: Request, state: str = None, code: str = None):
         if not code or not state:
             return {"error": "Missing code or state"}
 
-        # Extract the user email and the PKCE code verifier
-        parts = state.split(":::")
-        if len(parts) != 2:
-            return {"error": "Invalid state format"}
-            
-        user_email, code_verifier = parts
+        # Extract the user email
+        user_email = state
         
         client_config = get_client_config()
         
@@ -86,9 +71,6 @@ def google_callback(request: Request, state: str = None, code: str = None):
             redirect_uri=redirect_uri,
             state=state
         )
-        
-        # Inject the PKCE code verifier into the new Flow object
-        flow.code_verifier = code_verifier
 
         authorization_response = f"{redirect_uri}?state={urllib.parse.quote(state)}&code={code}"
         
