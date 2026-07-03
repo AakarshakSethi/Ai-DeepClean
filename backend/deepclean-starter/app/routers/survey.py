@@ -19,10 +19,14 @@ def get_pending_survey_items(user_id: int, limit: int = 10, db: Session = Depend
     Returns emails that need a survey answer: order/delivery OTPs (always),
     plus a few uncertain-category emails (risk score in the middle range).
     """
+    # Subquery to get IDs of emails that already have a survey response
+    answered_subquery = db.query(SurveyResponse.email_meta_id).filter(SurveyResponse.user_id == user_id).subquery()
+
     otp_exceptions = (
         db.query(EmailMeta)
         .filter(EmailMeta.user_id == user_id, EmailMeta.is_order_otp_exception == True)
         .filter(EmailMeta.is_deleted == False)
+        .filter(EmailMeta.id.not_in(answered_subquery))
         .limit(limit)
         .all()
     )
@@ -32,6 +36,7 @@ def get_pending_survey_items(user_id: int, limit: int = 10, db: Session = Depend
         .filter(EmailMeta.user_id == user_id)
         .filter(EmailMeta.risk_score.between(40, 60))
         .filter(EmailMeta.is_deleted == False)
+        .filter(EmailMeta.id.not_in(answered_subquery))
         .limit(limit)
         .all()
     )

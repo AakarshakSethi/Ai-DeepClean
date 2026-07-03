@@ -105,7 +105,7 @@ export default function Dashboard() {
   const [deepSyncing, setDeepSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
   const [syncProgress, setSyncProgress] = useState(0);
-  const [scanLimit, setScanLimit] = useState(() => Number(localStorage.getItem("deepclean_default_scan")) || 250);
+  const [scanLimit, setScanLimit] = useState(() => Number(localStorage.getItem("deepclean_default_scan")) || 500);
   const [autoSynced, setAutoSynced] = useState(false);
   const [expandedFolder, setExpandedFolder] = useState(null);
   const [selectedEmailIds, setSelectedEmailIds] = useState([]);
@@ -347,7 +347,7 @@ export default function Dashboard() {
 
     try {
       if (!isSilent) {
-        setSyncStatus(`Syncing recent ${scanLimit} emails...`);
+        setSyncStatus(`Syncing your inbox...`);
       }
       
       // If syncing silently in the background, fetch a quick 50 emails.
