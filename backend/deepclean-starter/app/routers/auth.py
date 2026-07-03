@@ -22,7 +22,6 @@ def google_login(user_email: str, request: Request, db: Session = Depends(get_db
     if not client_config:
         return {"error": "Google Client ID/Secret not configured on server"}
 
-    # Determine redirect URI based on the request host (localhost vs render)
     host = request.headers.get("host", "localhost:8000")
     scheme = "https" if "onrender.com" in host or request.headers.get("x-forwarded-proto") == "https" else "http"
     redirect_uri = f"{scheme}://{host}/auth/google/callback"
@@ -33,11 +32,22 @@ def google_login(user_email: str, request: Request, db: Session = Depends(get_db
         redirect_uri=redirect_uri
     )
 
-    authorization_url, state = flow.authorization_url(
+    # Generate the authorization URL and PKCE code verifier
+    authorization_url, _ = flow.authorization_url(
+        access_type="offline",
+        include_granted_scopes="true",
+        prompt="consent"
+    )
+    
+    # We must embed the PKCE code_verifier into the state so we can retrieve it in the callback
+    state_str = f"{user_email}:::{flow.code_verifier}"
+    
+    # Generate the final authorization URL with our custom state
+    authorization_url, _ = flow.authorization_url(
         access_type="offline",
         include_granted_scopes="true",
         prompt="consent",
-        state=user_email
+        state=state_str
     )
 
     return RedirectResponse(url=authorization_url)
@@ -53,12 +63,15 @@ def google_callback(request: Request, state: str = None, code: str = None):
         if not code or not state:
             return {"error": "Missing code or state"}
 
-        user_email = state
+        # Extract the user email and the PKCE code verifier
+        parts = state.split(":::")
+        if len(parts) != 2:
+            return {"error": "Invalid state format"}
+            
+        user_email, code_verifier = parts
+        
         client_config = get_client_config()
         
-        # We must use the exact redirect URI that Google expects
-        # On Render, request.headers["host"] can sometimes be the internal IP.
-        # We'll rely on the forwarded host if available.
         host = request.headers.get("x-forwarded-host", request.headers.get("host", "localhost:8000"))
         scheme = "https" if "onrender.com" in host or request.headers.get("x-forwarded-proto") == "https" else "http"
         redirect_uri = f"{scheme}://{host}/auth/google/callback"
@@ -69,6 +82,9 @@ def google_callback(request: Request, state: str = None, code: str = None):
             redirect_uri=redirect_uri,
             state=state
         )
+        
+        # Inject the PKCE code verifier into the new Flow object
+        flow.code_verifier = code_verifier
 
         authorization_response = f"{redirect_uri}?state={urllib.parse.quote(state)}&code={code}"
         
