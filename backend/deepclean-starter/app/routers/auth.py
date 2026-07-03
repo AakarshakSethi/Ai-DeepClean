@@ -107,7 +107,8 @@ def google_callback(request: Request, state: str = None, code: str = None):
         db.close()
 
         from app.config import FRONTEND_URL
-        return RedirectResponse(url=f"{FRONTEND_URL}?auth=success&email={urllib.parse.quote(user_email)}")
+        frontend_url = FRONTEND_URL.rstrip('/')
+        return RedirectResponse(url=f"{frontend_url}/login?auth=success&email={urllib.parse.quote(user_email)}")
     except Exception as e:
         return {"error": str(e), "traceback": traceback.format_exc()}
 
