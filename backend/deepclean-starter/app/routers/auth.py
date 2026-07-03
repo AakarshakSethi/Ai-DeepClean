@@ -5,6 +5,10 @@ from app.database.db import get_db
 from app.models.user import User
 from app.services.gmail_client import SCOPES, get_client_config
 import google_auth_oauthlib.flow
+import os
+
+# Google sometimes returns extra scopes (or reorders them). We must tell oauthlib to relax.
+os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
