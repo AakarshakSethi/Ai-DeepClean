@@ -65,7 +65,7 @@ def google_callback(request: Request, state: str = None, code: str = None):
             state=state
         )
 
-        authorization_response = str(request.url)
+        authorization_response = f"{redirect_uri}?state={urllib.parse.quote(state)}&code={code}"
         
         flow.fetch_token(authorization_response=authorization_response)
         creds = flow.credentials
