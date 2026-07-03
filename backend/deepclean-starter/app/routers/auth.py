@@ -59,7 +59,8 @@ def google_callback(request: Request, state: str = None, code: str = None):
     flow = google_auth_oauthlib.flow.Flow.from_client_config(
         client_config,
         scopes=SCOPES,
-        redirect_uri=redirect_uri
+        redirect_uri=redirect_uri,
+        state=state
     )
 
     # Need to fetch the token using the code
