@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useStorageSummary } from "../hooks/useEmails";
 import { listEmails, getEmailDetails, getAttachmentDownloadUrl, sendEmail, aiComposeEmail } from "../api/emails";
 import { runSync, runDeepSync } from "../api/sync";
@@ -621,9 +621,13 @@ export default function Dashboard() {
     pieData = [...top5, { name: "Other", value: otherValue }];
   }
 
-  const folders = getBrandFolders();
-  const standardOTPs = allEmails.filter((e) => e.category === "OTP" && !e.is_order_otp_exception);
-  const deliveryOTPs = allEmails.filter((e) => e.category === "OTP" && e.is_order_otp_exception);
+  // Memoize heavy calculations to prevent mobile UI freezing on re-renders
+  const { folders, standardOTPs, deliveryOTPs } = useMemo(() => {
+    const f = getBrandFolders();
+    const sOTPs = allEmails.filter((e) => e.category === "OTP" && !e.is_order_otp_exception);
+    const dOTPs = allEmails.filter((e) => e.category === "OTP" && e.is_order_otp_exception);
+    return { folders: f, standardOTPs: sOTPs, deliveryOTPs: dOTPs };
+  }, [allEmails]);
 
   let limitBytes = summaryData.real_limit_bytes !== undefined ? summaryData.real_limit_bytes : (15 * 1024 * 1024 * 1024);
   const isUnlimited = limitBytes === -1;
