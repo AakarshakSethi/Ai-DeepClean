@@ -36,12 +36,9 @@ def google_login(user_email: str, request: Request, db: Session = Depends(get_db
     authorization_url, state = flow.authorization_url(
         access_type="offline",
         include_granted_scopes="true",
-        prompt="consent"
+        prompt="consent",
+        state=user_email
     )
-
-    # In a real app we should securely store state in the session and verify it, 
-    # but for simplicity we'll pass the user_email in the state
-    authorization_url += f"&state={user_email}"
 
     return RedirectResponse(url=authorization_url)
 
