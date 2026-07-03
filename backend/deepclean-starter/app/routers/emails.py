@@ -23,32 +23,61 @@ def list_emails(user_id: int, category: str = None, db: Session = Depends(get_db
 
 from app.services.gmail_client import get_storage_quota
 
+import time
+_google_api_cache = {}
+
 @router.get("/storage-summary")
 def storage_summary(user_id: int, db: Session = Depends(get_db)):
-    emails = db.query(EmailMeta).filter(EmailMeta.user_id == user_id, EmailMeta.is_deleted == False).all()
-    total_size = sum(e.size_bytes for e in emails)
-    by_category = {}
-    for e in emails:
-        by_category[e.category] = by_category.get(e.category, 0) + e.size_bytes
+    from sqlalchemy import func, desc
+    
+    # 1. Total emails count
+    emails_count = db.query(EmailMeta).filter(EmailMeta.user_id == user_id, EmailMeta.is_deleted == False).count()
+    
+    # 2. Total size
+    total_size = db.query(func.sum(EmailMeta.size_bytes)).filter(
+        EmailMeta.user_id == user_id, EmailMeta.is_deleted == False
+    ).scalar() or 0
+    
+    # 3. Size by category
+    category_sizes = db.query(EmailMeta.category, func.sum(EmailMeta.size_bytes)).filter(
+        EmailMeta.user_id == user_id, EmailMeta.is_deleted == False
+    ).group_by(EmailMeta.category).all()
+    by_category = {cat: size for cat, size in category_sizes}
 
-    biggest = sorted(emails, key=lambda e: e.size_bytes, reverse=True)[:5]
+    # 4. Biggest 5 emails
+    biggest = db.query(EmailMeta).filter(
+        EmailMeta.user_id == user_id, EmailMeta.is_deleted == False
+    ).order_by(desc(EmailMeta.size_bytes)).limit(5).all()
 
-    # Fetch real Google storage quota from Drive API
-    quota = get_storage_quota(user_id)
+    # 5. Fetch real Google storage quota and profile (with 10-minute cache)
+    now = time.time()
+    quota = None
+    total_gmail_emails = None
+    
+    if user_id in _google_api_cache and (now - _google_api_cache[user_id]["timestamp"] < 600):
+        cached = _google_api_cache[user_id]
+        quota = cached["quota"]
+        total_gmail_emails = cached["total_gmail_emails"]
+    else:
+        quota = get_storage_quota(user_id)
+        try:
+            service = get_gmail_service(user_id)
+            profile = service.users().getProfile(userId="me").execute()
+            total_gmail_emails = profile.get("messagesTotal")
+        except Exception as pe:
+            print(f"[PROFILE ERROR] Failed to fetch total Gmail messages count: {pe}")
+            
+        _google_api_cache[user_id] = {
+            "quota": quota,
+            "total_gmail_emails": total_gmail_emails,
+            "timestamp": now
+        }
+
     real_limit = quota.get("limit") if quota else None
     real_usage = quota.get("usage") if quota else None
 
-    # Fetch total email count from Google Profile
-    total_gmail_emails = None
-    try:
-        service = get_gmail_service(user_id)
-        profile = service.users().getProfile(userId="me").execute()
-        total_gmail_emails = profile.get("messagesTotal")
-    except Exception as pe:
-        print(f"[PROFILE ERROR] Failed to fetch total Gmail messages count: {pe}")
-
     return {
-        "emails_scanned": len(emails),
+        "emails_scanned": emails_count,
         "total_size_bytes": total_size,
         "size_by_category": by_category,
         "biggest_emails": [_serialize(e) for e in biggest],
