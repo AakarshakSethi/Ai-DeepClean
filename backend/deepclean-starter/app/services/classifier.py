@@ -133,8 +133,8 @@ def classify_email(db: Session, user_id: int, subject: str, sender: str, gmail_l
     if is_otp:
         return {"category": "OTP", "is_order_otp_exception": False}
 
-    # If it's not OTP, use ML category predictions if available, else fall back to label/rules
-    if ml_prediction and ml_prediction not in ["OTP", "Promotions", "Social", "Updates", "Important", "Receipts"]:
+    # If it's not OTP, use ML category predictions if available
+    if ml_prediction and ml_prediction != "OTP":
         return {"category": ml_prediction, "is_order_otp_exception": False}
 
     if any(k in subject_lower for k in RECEIPT_KEYWORDS):

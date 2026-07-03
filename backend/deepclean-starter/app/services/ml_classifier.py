@@ -185,8 +185,8 @@ def ml_classify(db: Session, user_id: int, subject: str) -> str:
         max_prob = best_class[1]
         prediction = best_class[0]
         
-        # If the model is not confident (confidence < 50%), ignore and fallback to rules
-        if max_prob < 0.5:
+        # If the model is not confident, ignore and fallback to rules
+        if max_prob < 0.3:
             return None
             
         return prediction
