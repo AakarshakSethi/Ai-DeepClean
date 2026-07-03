@@ -93,3 +93,10 @@ export async function listSpamEmails(userId) {
   });
   return response.data;
 }
+
+export async function unspamEmail(userId, gmailId, newCategory) {
+  const response = await apiClient.post("/emails/unspam", null, {
+    params: { user_id: userId, gmail_id: gmailId, new_category: newCategory },
+  });
+  return response.data;
+}

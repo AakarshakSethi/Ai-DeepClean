@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { listSpamEmails, getGmailMessageDetails } from "../api/emails";
+import { listSpamEmails, getGmailMessageDetails, unspamEmail } from "../api/emails";
 import DashboardLayout from "../layouts/DashboardLayout";
 import {
   FiLoader,
@@ -47,7 +47,30 @@ export default function Spam() {
       setModalLoading(false);
     }
   };
+  const [rescueCategory, setRescueCategory] = useState("INBOX");
+  const [customCategory, setCustomCategory] = useState("");
+  const [rescuing, setRescuing] = useState(false);
 
+  const handleRescue = async () => {
+    if (!selectedEmail) return;
+    const finalCategory = rescueCategory === "Other" ? customCategory : rescueCategory;
+    if (!finalCategory.trim()) {
+      alert("Please specify a category to rescue this email to.");
+      return;
+    }
+    setRescuing(true);
+    try {
+      await unspamEmail(userId, selectedEmail.gmail_message_id, finalCategory);
+      alert(`Email rescued to ${finalCategory}!`);
+      setShowModal(false);
+      setSpamEmails((prev) => prev.filter(e => e.gmail_message_id !== selectedEmail.gmail_message_id));
+    } catch (e) {
+      console.error(e);
+      alert("Failed to rescue email.");
+    } finally {
+      setRescuing(false);
+    }
+  };
   return (
     <DashboardLayout>
       <div className="max-w-5xl mx-auto space-y-8">
@@ -254,13 +277,43 @@ export default function Spam() {
               </div>
 
               {/* Footer */}
-              <div className="bg-[#F2F6FC] px-6 py-3.5 flex justify-end border-t border-gray-250">
+              <div className="bg-[#F2F6FC] px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-gray-250">
+                
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <span className="text-xs font-bold text-gray-600">Rescue to:</span>
+                  <select
+                    value={rescueCategory}
+                    onChange={(e) => setRescueCategory(e.target.value)}
+                    className="bg-white border border-gray-300 text-gray-700 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-500"
+                  >
+                    <option value="INBOX">Primary Inbox</option>
+                    <option value="Promotions">Promotions</option>
+                    <option value="Receipts">Receipts</option>
+                    <option value="Other">Custom Folder...</option>
+                  </select>
+                  
+                  {rescueCategory === "Other" && (
+                    <input
+                      type="text"
+                      placeholder="Folder name"
+                      value={customCategory}
+                      onChange={(e) => setCustomCategory(e.target.value)}
+                      className="bg-white border border-gray-300 text-gray-700 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-violet-500 w-28"
+                    />
+                  )}
+                  
+                  <button
+                    onClick={handleRescue}
+                    disabled={rescuing}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-4 rounded-lg text-xs transition-colors shadow-sm disabled:opacity-50"
+                  >
+                    {rescuing ? "Rescuing..." : "Rescue"}
+                  </button>
+                </div>
+
                 <button
-                  onClick={() => {
-                    setShowModal(false);
-                    setSelectedEmail(null);
-                  }}
-                  className="bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold px-6 py-2.5 rounded-xl transition-all shadow-sm"
+                  onClick={() => setShowModal(false)}
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-1.5 px-5 rounded-lg text-xs transition-colors w-full sm:w-auto"
                 >
                   Close
                 </button>
