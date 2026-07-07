@@ -105,10 +105,13 @@ def google_callback(request: Request, state: str = None, code: str = None):
             with open(token_filename, "w") as token_file:
                 token_file.write(creds.to_json())
                 
-        db.close()
+        # Determine where to send the user back to (Frontend)
+        # Instead of a hardcoded config, we redirect back to the same host that initiated the request,
+        # but swapping the backend port (8000) for the frontend port (5173).
+        host_parts = host.split(':')
+        frontend_host = host_parts[0] + ":5173"
+        frontend_url = f"{scheme}://{frontend_host}"
 
-        from app.config import FRONTEND_URL
-        frontend_url = FRONTEND_URL.rstrip('/')
         return RedirectResponse(url=f"{frontend_url}/login?auth=success&email={urllib.parse.quote(user_email)}")
     except Exception as e:
         return {"error": str(e), "traceback": traceback.format_exc()}

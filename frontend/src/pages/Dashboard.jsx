@@ -567,9 +567,16 @@ export default function Dashboard() {
     return sorted;
   };
 
+  // Memoize heavy calculations to prevent mobile UI freezing on re-renders
+  const { folders, standardOTPs, deliveryOTPs } = useMemo(() => {
+    const f = getBrandFolders();
+    const sOTPs = allEmails.filter((e) => e.category === "OTP" && !e.is_order_otp_exception);
+    const dOTPs = allEmails.filter((e) => e.category === "OTP" && e.is_order_otp_exception);
+    return { folders: f, standardOTPs: sOTPs, deliveryOTPs: dOTPs };
+  }, [allEmails]);
+
   const handleChartClick = (entry) => {
     if (!entry || !entry.name) return;
-    const folders = getBrandFolders();
     const folder = folders.find(f => f.name === entry.name);
     if (folder) {
       setActiveTab("folders");
@@ -620,14 +627,6 @@ export default function Dashboard() {
     const otherValue = pieData.slice(5).reduce((acc, curr) => acc + curr.value, 0);
     pieData = [...top5, { name: "Other", value: otherValue }];
   }
-
-  // Memoize heavy calculations to prevent mobile UI freezing on re-renders
-  const { folders, standardOTPs, deliveryOTPs } = useMemo(() => {
-    const f = getBrandFolders();
-    const sOTPs = allEmails.filter((e) => e.category === "OTP" && !e.is_order_otp_exception);
-    const dOTPs = allEmails.filter((e) => e.category === "OTP" && e.is_order_otp_exception);
-    return { folders: f, standardOTPs: sOTPs, deliveryOTPs: dOTPs };
-  }, [allEmails]);
 
   let limitBytes = summaryData.real_limit_bytes !== undefined ? summaryData.real_limit_bytes : (15 * 1024 * 1024 * 1024);
   const isUnlimited = limitBytes === -1;
