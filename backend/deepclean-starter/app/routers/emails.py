@@ -17,7 +17,7 @@ def list_emails(user_id: int, category: str = None, db: Session = Depends(get_db
     query = db.query(EmailMeta).filter(EmailMeta.user_id == user_id, EmailMeta.is_deleted == False).order_by(EmailMeta.id.desc())
     if category:
         query = query.filter(EmailMeta.category == category)
-    emails = query.limit(1000).all()
+    emails = query.all()
     return {"count": len(emails), "emails": [_serialize(e) for e in emails]}
 
 
