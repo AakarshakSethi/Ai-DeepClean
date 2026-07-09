@@ -49,7 +49,7 @@ export default function Login() {
 
     // Redirect to the backend login endpoint to start the Web OAuth flow
     const backendUrl = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
-    window.location.href = `${backendUrl}/auth/google/login`;
+    window.location.href = `${backendUrl}/auth/google/login?frontend_url=${encodeURIComponent(window.location.origin)}`;
   };
 
   return (

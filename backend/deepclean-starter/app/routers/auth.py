@@ -13,13 +13,13 @@ os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.get("/google/login")
-def google_login(request: Request, db: Session = Depends(get_db)):
-    """Starts the Google Web OAuth flow."""
+def google_login(request: Request, frontend_url: str = None):
+    """Initiates the Google OAuth flow."""
     client_config = get_client_config()
     if not client_config:
         return {"error": "Google Client ID/Secret not configured on server"}
 
-    host = request.headers.get("host", "localhost:8000")
+    host = request.headers.get("x-forwarded-host", request.headers.get("host", "localhost:8000"))
     scheme = "https" if "onrender.com" in host or request.headers.get("x-forwarded-proto") == "https" else "http"
     redirect_uri = f"{scheme}://{host}/auth/google/callback"
 
@@ -30,7 +30,11 @@ def google_login(request: Request, db: Session = Depends(get_db)):
     )
 
     import uuid
-    state_token = str(uuid.uuid4())
+    import json
+    import base64
+    
+    state_dict = {"token": str(uuid.uuid4()), "frontend_url": frontend_url}
+    state_token = base64.b64encode(json.dumps(state_dict).encode()).decode()
 
     # Generate the authorization URL with a secure random state
     authorization_url, _ = flow.authorization_url(
@@ -106,11 +110,16 @@ def google_callback(request: Request, state: str = None, code: str = None):
                 token_file.write(creds.to_json())
                 
         # Determine where to send the user back to (Frontend)
-        # Instead of a hardcoded config, we redirect back to the same host that initiated the request,
-        # but swapping the backend port (8000) for the frontend port (5173).
-        host_parts = host.split(':')
-        frontend_host = host_parts[0] + ":5173"
-        frontend_url = f"{scheme}://{frontend_host}"
+        try:
+            import json
+            import base64
+            state_dict = json.loads(base64.b64decode(state).decode())
+            frontend_url = state_dict.get("frontend_url")
+        except Exception:
+            frontend_url = None
+
+        if not frontend_url:
+            frontend_url = "http://localhost:5173"
 
         return RedirectResponse(url=f"{frontend_url}/login?auth=success&email={urllib.parse.quote(user_email)}")
     except Exception as e:
