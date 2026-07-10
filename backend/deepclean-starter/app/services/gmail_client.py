@@ -38,11 +38,28 @@ def get_client_config():
 
 
 def get_gmail_service(user_id: int = None):
+    import json
     import httplib2
-    token_filename = f"token_{user_id}.json" if user_id else "token.json"
+    from app.database.db import SessionLocal
+    from app.models.user import User
+    
     creds = None
-    if os.path.exists(token_filename):
-        creds = Credentials.from_authorized_user_file(token_filename, SCOPES)
+    if user_id:
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if user and user.google_refresh_token:
+                creds_info = json.loads(user.google_refresh_token)
+                creds = Credentials.from_authorized_user_info(creds_info, SCOPES)
+        except Exception as e:
+            print(f"Failed to parse credentials from DB: {e}")
+        finally:
+            db.close()
+            
+    if not creds:
+        token_filename = f"token_{user_id}.json" if user_id else "token.json"
+        if os.path.exists(token_filename):
+            creds = Credentials.from_authorized_user_file(token_filename, SCOPES)
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
@@ -142,17 +159,34 @@ def fetch_recent_emails(user_id: int = None, max_results=50, q=None):
 def get_storage_quota(user_id: int):
     """Fetches the user's real Google storage quota from Drive API."""
     import os
+    import json
     import httplib2
     import google_auth_httplib2
     from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
+    from app.database.db import SessionLocal
+    from app.models.user import User
     
     try:
-        token_filename = f"token_{user_id}.json" if user_id else "token.json"
-        if not os.path.exists(token_filename):
-            return None
+        creds = None
+        if user_id:
+            db = SessionLocal()
+            try:
+                user = db.query(User).filter(User.id == user_id).first()
+                if user and user.google_refresh_token:
+                    creds_info = json.loads(user.google_refresh_token)
+                    creds = Credentials.from_authorized_user_info(creds_info, SCOPES)
+            except Exception as e:
+                print(f"Failed to parse credentials from DB: {e}")
+            finally:
+                db.close()
+                
+        if not creds:
+            token_filename = f"token_{user_id}.json" if user_id else "token.json"
+            if not os.path.exists(token_filename):
+                return None
+            creds = Credentials.from_authorized_user_file(token_filename, SCOPES)
             
-        creds = Credentials.from_authorized_user_file(token_filename, SCOPES)
         http_transport = httplib2.Http(disable_ssl_certificate_validation=True)
         authorized_http = google_auth_httplib2.AuthorizedHttp(creds, http=http_transport)
         

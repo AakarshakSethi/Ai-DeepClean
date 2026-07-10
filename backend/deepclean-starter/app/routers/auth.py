@@ -105,9 +105,9 @@ def google_callback(request: Request, state: str = None, code: str = None):
             db.refresh(user)
         
         if user:
-            token_filename = f"token_{user.id}.json"
-            with open(token_filename, "w") as token_file:
-                token_file.write(creds.to_json())
+            # Store the entire credentials JSON in the database so it survives Render sleep cycles
+            user.google_refresh_token = creds.to_json()
+            db.commit()
                 
         # Determine where to send the user back to (Frontend)
         try:
