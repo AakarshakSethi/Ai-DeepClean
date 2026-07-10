@@ -628,7 +628,7 @@ export default function Dashboard() {
     pieData = [...top5, { name: "Other", value: otherValue }];
   }
 
-  let limitBytes = summaryData.real_limit_bytes !== undefined ? summaryData.real_limit_bytes : (15 * 1024 * 1024 * 1024);
+  let limitBytes = (summaryData.real_limit_bytes !== undefined && summaryData.real_limit_bytes !== null) ? summaryData.real_limit_bytes : (15 * 1024 * 1024 * 1024);
   const isUnlimited = limitBytes === -1;
   
   const usageBytes = summaryData.real_usage_bytes !== null && summaryData.real_usage_bytes !== undefined 
